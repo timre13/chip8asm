@@ -1,6 +1,7 @@
 #include <iostream>
 #include "InputFile.h"
 #include "Logger.h"
+#include "tokenizer.h"
 
 int main(int argc, char** argv)
 {
@@ -12,6 +13,9 @@ int main(int argc, char** argv)
 
     InputFile file;
     file.open(argv[1]);
+
+    auto tokenList = Tokenizer::tokenize(file.getContent(), file.getFilePath());
+    Logger::dbg << "Found " << tokenList.size() << " tokens" << Logger::End;
 
     return 0;
 }

@@ -7,15 +7,15 @@
 #include <sstream>
 #include <fstream>
 
-void InputFile::open(const std::string& filename)
+void InputFile::open(const std::string& filePath)
 {
-    Logger::dbg << "Reading file: " << filename << Logger::End;
+    Logger::dbg << "Reading file: " << filePath << Logger::End;
 
     m_buffer.clear();
     try
     {
         std::ifstream file;
-        file.open(filename);
+        file.open(filePath);
         if (!file.is_open() || file.fail())
             throw std::runtime_error{strerror(errno)};
 
@@ -26,11 +26,10 @@ void InputFile::open(const std::string& filename)
     catch (std::exception& e)
     {
         m_isOpenFailed = true;
-        Logger::fatal << "Failed to read file: \"" << filename << "\": " << e.what() << Logger::End;
+        Logger::fatal << "Failed to read file: \"" << filePath << "\": " << e.what() << Logger::End;
         return;
     }
     m_isOpenFailed = false;
-
-    Logger::dbg << "File contents:\n" << m_buffer << "\n============= End of file contents =============" <<Logger::End;
+    m_filePath = filePath;
 }
 
