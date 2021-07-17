@@ -1,5 +1,6 @@
 #include "tokenizer.h"
 #include "Logger.h"
+#include "common.h"
 #include <cctype>
 #include <cstdlib>
 #include <stdexcept>
@@ -126,6 +127,7 @@ tokenList_t tokenize(const std::string& str, const::std::string& filename)
         {
             Logger::dbg << "Found a label: \"" << word.substr(0, word.length()-1) << '"' << Logger::End;
             // XXX: Implement labels
+            TODO();
             continue;
         }
 

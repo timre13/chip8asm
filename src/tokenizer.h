@@ -15,6 +15,8 @@ namespace Tokenizer
  */
 class Token
 {
+public:
+    virtual inline ~Token(){}
 };
 
 using tokenList_t = std::vector<std::shared_ptr<Token>>;
