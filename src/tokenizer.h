@@ -11,7 +11,7 @@ namespace Tokenizer
 {
 
 /*
- * Base class for all the things that can appear in the code.
+ * Base class for all the things that can appear in the assembly code.
  */
 class Token
 {
@@ -126,22 +126,23 @@ private:
     enum class Type
     {
         Empty,
-        Byte,
-        Nibble,
+        Uint, // Byte (8 bits), nibble (4 bits) or address (12 bits)
         Register,
-    } m_type;
+    } m_type = Type::Empty;
 
     union
     {
-        uint8_t m_byte = 0;
-        uint8_t m_nibble;
+        uint16_t m_uint = 0;
         RegisterEnum m_register;
     };
 
+public:
     inline Type getType() const { return m_type; }
-    inline uint8_t getAsByte() const { assert(m_type == Type::Byte); return m_byte; }
-    inline uint8_t getAsNibble() const { assert(m_type == Type::Nibble); return m_nibble & 0x0f; }
+    inline uint16_t getAsUint() const { assert(m_type == Type::Uint); return m_uint & 0x0fff; }
     inline RegisterEnum getAsRegister() const { assert(m_type == Type::Register); return m_register; }
+
+    inline void setUint(uint8_t value) { m_uint = value; m_type = Type::Uint; }
+    inline void setRegister(RegisterEnum reg) { m_register = reg; m_type = Type::Register; }
 };
 
 class Opcode final : public Token

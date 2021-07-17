@@ -1,8 +1,11 @@
 #include "tokenizer.h"
 #include "Logger.h"
 #include <cctype>
+#include <cstdlib>
+#include <stdexcept>
 #include <string>
 #include <sstream>
+#include <utility>
 
 namespace Tokenizer
 {
@@ -87,9 +90,27 @@ tokenList_t tokenize(const std::string& str, const::std::string& filename)
         auto getWord{
             [&charI, &line](){
                 std::string word;
-                while (charI < line.length() && std::isspace(line[charI]))
+                auto isSpace{
+                    [](char c){
+                        switch (c)
+                        {
+                        case ' ':
+                        case '\f':
+                        case '\n':
+                        case '\r':
+                        case '\t':
+                        case '\v':
+                        case ',':
+                            return true;
+                        default:
+                            return false;
+                        }
+                    }
+                };
+
+                while (charI < line.length() && isSpace(line[charI]))
                     ++charI;
-                while (charI < line.length() && !std::isspace(line[charI]))
+                while (charI < line.length() && !isSpace(line[charI]))
                     word += line[charI++];
                 return word;
             }
@@ -111,19 +132,57 @@ tokenList_t tokenize(const std::string& str, const::std::string& filename)
         OpcodeEnum opcode = opcodeStrToEnum(strToLower(word));
         if (opcode != OPCODE_INVALID)
         {
+            auto processOperand{ // -> bool: true if error happened, false otherwise
+                [&filename = std::as_const(filename), &lineI = std::as_const(lineI)]
+                    (const std::string& operandStr, OpcodeOperand& operand){
+                    auto reg = registerStrToEnum(operandStr);
+                    if (reg != REGISTER_INVALID) // A register name
+                    {
+                        operand.setRegister(reg);
+                        Logger::dbg << "Register: " << reg << Logger::End;
+                    }
+                    else // Should be an integer constant
+                    {
+                        try
+                        {
+                            // TODO: Support binary base
+                            int integer = std::stoi(operandStr, 0, 0);
+                            if ((unsigned int)integer > 0x0fff)
+                                throw std::out_of_range{"Value cannot fit in one byte."};
+                            Logger::dbg << "Integer: " << integer << Logger::End;
+                            operand.setUint(integer);
+                        }
+                        catch (std::out_of_range&)
+                        {
+                            Logger::err << filename << ':' << lineI << ": Integer literal is out of range: \"" << operandStr << '"' << Logger::End;
+                            return true;
+                        }
+                        catch (std::invalid_argument&)
+                        {
+                            Logger::err << filename << ':' << lineI << ": Unknown value: \"" << operandStr << '"' << Logger::End;
+                            return true;
+                        }
+                    }
+                    return false;
+                }
+            };
+
             Logger::dbg << "Found an opcode: " << word << " = " << opcode << Logger::End;
-            std::string operand0 = getWord();
-            std::string operand1 = getWord();
-            Logger::dbg << "Operand 0: \"" << operand0 << "\", operand 1: \"" << operand1 << '"' << Logger::End;
+            std::string operand0Str = getWord();
+            std::string operand1Str = getWord();
+            Logger::dbg << "Operand 0: \"" << operand0Str << "\", operand 1: \"" << operand1Str << '"' << Logger::End;
             auto token = std::make_shared<Opcode>();
             token->opcode = opcode;
-            // XXX: Implement operands
+            if (operand0Str.size() && processOperand(operand0Str, token->operand0))
+                continue;
+            if (operand1Str.size() && processOperand(operand1Str, token->operand1))
+                continue;
+
             tokens.push_back(std::move(token));
-            // XXX: Implement opcodes
             continue;
         }
 
-        Logger::err << filename << ':' << lineI << ": Syntax error: \"" << word << "\"" << Logger::End;
+        Logger::err << filename << ':' << lineI << ": Syntax error: \"" << word << '"' << Logger::End;
     }
 
     return tokens;
