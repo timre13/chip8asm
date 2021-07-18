@@ -11,8 +11,10 @@
 namespace Tokenizer
 {
 
-OpcodeEnum opcodeStrToEnum(const std::string& opcode)
+OpcodeEnum opcodeStrToEnum(std::string opcode)
 {
+    opcode = strToLower(opcode);
+
     // TODO: Is this UB?
 
     for (int en{}; en < OPCODE_INVALID; ++en)
@@ -25,8 +27,10 @@ OpcodeEnum opcodeStrToEnum(const std::string& opcode)
     return OPCODE_INVALID;
 }
 
-RegisterEnum registerStrToEnum(const std::string& reg)
+RegisterEnum registerStrToEnum(std::string reg)
 {
+    reg = strToLower(reg);
+
     // TODO: Is this UB?
 
     for (int en{}; en < REGISTER_INVALID; ++en)
@@ -39,7 +43,7 @@ RegisterEnum registerStrToEnum(const std::string& reg)
     return REGISTER_INVALID;
 }
 
-bool isNumberedRegister(RegisterEnum reg)
+bool isVRegister(RegisterEnum reg)
 {
     switch (reg)
     {
@@ -65,9 +69,9 @@ bool isNumberedRegister(RegisterEnum reg)
     }
 }
 
-uint8_t numberedRegisterToByte(RegisterEnum reg)
+uint8_t vRegisterToByte(RegisterEnum reg)
 {
-    assert(isNumberedRegister(reg));
+    assert(isVRegister(reg));
     return (uint8_t)reg;
 }
 
@@ -131,17 +135,30 @@ tokenList_t tokenize(const std::string& str, const::std::string& filename)
             continue;
         }
 
-        OpcodeEnum opcode = opcodeStrToEnum(strToLower(word));
+        OpcodeEnum opcode = opcodeStrToEnum(word);
         if (opcode != OPCODE_INVALID)
         {
             auto processOperand{ // -> bool: true if error happened, false otherwise
                 [&filename = std::as_const(filename), &lineI = std::as_const(lineI)]
                     (const std::string& operandStr, OpcodeOperand& operand){
+                    if (isComment(operandStr))
+                        return false;
+
                     auto reg = registerStrToEnum(operandStr);
                     if (reg != REGISTER_INVALID) // A register name
                     {
                         operand.setRegister(reg);
                         Logger::dbg << "Register: " << reg << Logger::End;
+                    }
+                    else if (strToLower(operandStr).compare("f") == 0)
+                    {
+                        operand.setF();
+                        Logger::dbg << "F operand" << Logger::End;
+                    }
+                    else if (strToLower(operandStr).compare("b") == 0)
+                    {
+                        operand.setB();
+                        Logger::dbg << "B operand" << Logger::End;
                     }
                     else // Should be an integer constant
                     {
@@ -156,12 +173,12 @@ tokenList_t tokenize(const std::string& str, const::std::string& filename)
                         }
                         catch (std::out_of_range&)
                         {
-                            Logger::err << filename << ':' << lineI << ": Integer literal is out of range: \"" << operandStr << '"' << Logger::End;
+                            Logger::fatal << filename << ':' << lineI << ": Integer literal is out of range: \"" << operandStr << '"' << Logger::End;
                             return true;
                         }
                         catch (std::invalid_argument&)
                         {
-                            Logger::err << filename << ':' << lineI << ": Unknown value: \"" << operandStr << '"' << Logger::End;
+                            Logger::fatal << filename << ':' << lineI << ": Unknown value: \"" << operandStr << '"' << Logger::End;
                             return true;
                         }
                     }
@@ -172,19 +189,36 @@ tokenList_t tokenize(const std::string& str, const::std::string& filename)
             Logger::dbg << "Found an opcode: " << word << " = " << opcode << Logger::End;
             std::string operand0Str = getWord();
             std::string operand1Str = getWord();
-            Logger::dbg << "Operand 0: \"" << operand0Str << "\", operand 1: \"" << operand1Str << '"' << Logger::End;
+            std::string operand2Str = getWord();
+            Logger::dbg << "Operand 0: \"" << operand0Str << "\", operand 1: \"" << operand1Str << "\", operand 2: \"" << operand2Str << '"' << Logger::End;
             auto token = std::make_shared<Opcode>();
             token->opcode = opcode;
             if (operand0Str.size() && processOperand(operand0Str, token->operand0))
                 continue;
             if (operand1Str.size() && processOperand(operand1Str, token->operand1))
                 continue;
+            if (operand2Str.size() && processOperand(operand2Str, token->operand2))
+                continue;
 
+            // Only LD can hava F and B as operands
+            if (opcode != OPCODE_LD
+             &&(token->operand0.getType() == Tokenizer::OpcodeOperand::Type::F
+             || token->operand0.getType() == Tokenizer::OpcodeOperand::Type::B
+             || token->operand1.getType() == Tokenizer::OpcodeOperand::Type::F
+             || token->operand1.getType() == Tokenizer::OpcodeOperand::Type::B
+             || token->operand2.getType() == Tokenizer::OpcodeOperand::Type::F
+             || token->operand2.getType() == Tokenizer::OpcodeOperand::Type::B))
+            {
+                goto print_syntax_error;
+            }
+
+            token->setLineNumber(lineI);
             tokens.push_back(std::move(token));
             continue;
         }
 
-        Logger::err << filename << ':' << lineI << ": Syntax error: \"" << word << '"' << Logger::End;
+print_syntax_error:
+        Logger::fatal << filename << ':' << lineI << ": Syntax error: \"" << word << '"' << Logger::End;
     }
 
     return tokens;

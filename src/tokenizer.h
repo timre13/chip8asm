@@ -15,8 +15,15 @@ namespace Tokenizer
  */
 class Token
 {
+private:
+    int m_lineNumber{};
+
 public:
     virtual inline ~Token(){}
+
+    virtual inline void setLineNumber(int value) { m_lineNumber = value; }
+    virtual inline int getLineNumber() const { return m_lineNumber; }
+    virtual inline std::string getLineNumberStr() const { return m_lineNumber > 0 ? std::to_string(m_lineNumber) : "?"; }
 };
 
 using tokenList_t = std::vector<std::shared_ptr<Token>>;
@@ -69,7 +76,7 @@ constexpr const char* const opcodeNames[] = {
     "sknp",
 };
 
-[[nodiscard]] OpcodeEnum opcodeStrToEnum(const std::string& opcode);
+[[nodiscard]] OpcodeEnum opcodeStrToEnum(std::string opcode);
 
 enum RegisterEnum
 {
@@ -89,10 +96,10 @@ enum RegisterEnum
     REGISTER_VD,
     REGISTER_VE,
     REGISTER_VF,
-    REGISTER_SP,
+    REGISTER_I,
+    REGISTER_I_ADDR,
     REGISTER_DT,
     REGISTER_ST,
-    REGISTER_I,
     REGISTER_INVALID,
 };
 
@@ -113,38 +120,44 @@ constexpr const char* const registerNames[] = {
     "vd",
     "ve",
     "vf",
-    "sp",
-    "dt",
-    "st",
     "i",
+    "[i]",
+    "st",
+    "dt",
 };
-[[nodiscard]] RegisterEnum registerStrToEnum(const std::string& reg);
-[[nodiscard]] bool isNumberedRegister(RegisterEnum reg);
-[[nodiscard]] uint8_t numberedRegisterToByte(RegisterEnum reg);
+[[nodiscard]] RegisterEnum registerStrToEnum(std::string reg);
+[[nodiscard]] bool isVRegister(RegisterEnum reg);
+[[nodiscard]] uint8_t vRegisterToByte(RegisterEnum reg);
 
 class OpcodeOperand
 {
-private:
+public:
     enum class Type
     {
         Empty,
-        Uint, // Byte (8 bits), nibble (4 bits) or address (12 bits)
-        Register,
-    } m_type = Type::Empty;
+        Uint,     // Byte (8 bits), nibble (4 bits) or address (12 bits)
+        Register, // Register
+        F,        // Used by LD
+        B,        // Used by LD
+    };
 
+private:
+    Type m_type = Type::Empty;
     union
     {
         uint16_t m_uint = 0;
-        RegisterEnum m_register;
+        RegisterEnum m_vRegister;
     };
 
 public:
     inline Type getType() const { return m_type; }
     inline uint16_t getAsUint() const { assert(m_type == Type::Uint); return m_uint & 0x0fff; }
-    inline RegisterEnum getAsRegister() const { assert(m_type == Type::Register); return m_register; }
+    inline RegisterEnum getAsRegister() const { assert(m_type == Type::Register); return m_vRegister; }
 
     inline void setUint(uint8_t value) { m_uint = value; m_type = Type::Uint; }
-    inline void setRegister(RegisterEnum reg) { m_register = reg; m_type = Type::Register; }
+    inline void setRegister(RegisterEnum reg) { m_vRegister = reg; m_type = Type::Register; }
+    inline void setF() { m_type = Type::F; }
+    inline void setB() { m_type = Type::B; }
 };
 
 class Opcode final : public Token
@@ -153,6 +166,7 @@ public:
     OpcodeEnum opcode;
     OpcodeOperand operand0;
     OpcodeOperand operand1;
+    OpcodeOperand operand2;
 };
 
 //--------------------------------- Label --------------------------------------
