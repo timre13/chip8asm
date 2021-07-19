@@ -77,6 +77,11 @@ static void handleOpcode(const Tokenizer::Opcode* opcode, ByteList& output)
                     (opcode->operand0.getAsUint() & 0x0fff));
             break;
 
+        case Tokenizer::OpcodeOperand::Type::F:
+        case Tokenizer::OpcodeOperand::Type::B:
+        case Tokenizer::OpcodeOperand::Type::K:
+            // Already handled
+            break;
         }
         break;
 
@@ -92,106 +97,213 @@ static void handleOpcode(const Tokenizer::Opcode* opcode, ByteList& output)
         printErrorIfWrongNumOfOps(2);
         if (opcode->operand0.getType() != Tokenizer::OpcodeOperand::Type::Register)
             Logger::fatal << "SE opcode requires a register name as left argument" << Logger::End;
-        if (opcode->operand0.getType() == Tokenizer::OpcodeOperand::Type::Uint) // SE Vx, byte
+        if (opcode->operand1.getType() == Tokenizer::OpcodeOperand::Type::Uint) // SE Vx, byte
         {
             output.append16(0x3000 |
-                    (Tokenizer::vRegisterToByte(opcode->operand0.getAsRegister()) << 8) |
+                    (Tokenizer::vRegisterToNibble(opcode->operand0.getAsRegister()) << 8) |
                     (opcode->operand1.getAsUint() & 0xff));
         }
         else // SE Vx, Vy
         {
-            output.append16(0x3000 |
-                    (Tokenizer::vRegisterToByte(opcode->operand0.getAsRegister()) << 8) |
-                    Tokenizer::vRegisterToByte(opcode->operand0.getAsRegister()));
+            output.append16(0x5000 |
+                    (Tokenizer::vRegisterToNibble(opcode->operand0.getAsRegister()) << 8) |
+                    Tokenizer::vRegisterToNibble(opcode->operand1.getAsRegister()) << 4);
         }
         break;
 
     case Tokenizer::OPCODE_SNE:
         output.append16(0x4000 |
-                (Tokenizer::vRegisterToByte(opcode->operand0.getAsRegister()) << 8) |
+                (Tokenizer::vRegisterToNibble(opcode->operand0.getAsRegister()) << 8) |
                 (opcode->operand1.getAsUint() & 0xff));
         break;
 
     case Tokenizer::OPCODE_LD:
         printErrorIfWrongNumOfOps(2);
-        if (opcode->operand0.getType() == Tokenizer::OpcodeOperand::Type::Register)
+        switch (opcode->operand0.getType())
         {
-            output.append16(0x6000 |
-                    (Tokenizer::vRegisterToByte(opcode->operand0.getAsRegister()) << 8) |
-                    (opcode->operand1.getAsUint() & 0xff));
+        case Tokenizer::OpcodeOperand::Type::Register:
+        {
+            if (opcode->operand0.getAsRegister() == Tokenizer::REGISTER_I) // LD I, addr
+            {
+                output.append16(0xa000 |
+                        (opcode->operand1.getAsUint() & 0x0fff));
+            }
+            else if (opcode->operand0.getAsRegister() == Tokenizer::REGISTER_I_ADDR) // LD [I], Vx
+            {
+                output.append16(0xa055 |
+                        (Tokenizer::vRegisterToNibble(opcode->operand1.getAsRegister()) << 8));
+            }
+            else if (opcode->operand0.getAsRegister() == Tokenizer::REGISTER_DT) // LD DT, Vx
+            {
+                output.append16(0xf015 |
+                        (Tokenizer::vRegisterToNibble(opcode->operand1.getAsRegister()) << 8));
+            }
+            else if (opcode->operand0.getAsRegister() == Tokenizer::REGISTER_ST) // LD ST, Vx
+            {
+                output.append16(0xf018 |
+                        (Tokenizer::vRegisterToNibble(opcode->operand1.getAsRegister()) << 8));
+            }
+            else // Operand 0: Vx register
+            {
+                switch (opcode->operand1.getType()) // Decide opcode using operand 1
+                {
+                case Tokenizer::OpcodeOperand::Type::Uint: // LD Vx, byte
+                    output.append16(0x6000 |
+                            (Tokenizer::vRegisterToNibble(opcode->operand0.getAsRegister()) << 8) |
+                            (opcode->operand1.getAsUint() & 0xff));
+                    break;
+
+                case Tokenizer::OpcodeOperand::Type::Register:
+                    if (opcode->operand1.getAsRegister() == Tokenizer::REGISTER_I) // We can't load from I
+                    {
+                        Logger::fatal << "LD can't load from register I" << Logger::End;
+                    }
+                    else if (opcode->operand1.getAsRegister() == Tokenizer::REGISTER_I_ADDR) // LD Vx, [I]
+                    {
+                        output.append16(0xf065 |
+                                (Tokenizer::vRegisterToNibble(opcode->operand0.getAsRegister()) << 8));
+                    }
+                    else if (opcode->operand1.getAsRegister() == Tokenizer::REGISTER_DT) // LD Vx, DT
+                    {
+                        output.append16(0xf007 |
+                                (Tokenizer::vRegisterToNibble(opcode->operand0.getAsRegister()) << 8));
+                    }
+                    else // LD Vx, Vy
+                    {
+                        output.append16(0x8000 |
+                                (Tokenizer::vRegisterToNibble(opcode->operand0.getAsRegister()) << 8) |
+                                (Tokenizer::vRegisterToNibble(opcode->operand1.getAsRegister()) << 4));
+                    }
+                    break;
+
+                case Tokenizer::OpcodeOperand::Type::K: // LD Vx, K
+                        output.append16(0xf00a |
+                                (Tokenizer::vRegisterToNibble(opcode->operand0.getAsRegister()) << 8));
+                    break;
+
+                case Tokenizer::OpcodeOperand::Type::F:
+                    Logger::fatal << "LD: Right-side operand can't be F" << Logger::End;
+                    break;
+
+                case Tokenizer::OpcodeOperand::Type::B:
+                    Logger::fatal << "LD: Right-side operand can't be B" << Logger::End;
+                    break;
+
+                case Tokenizer::OpcodeOperand::Type::Empty:
+                    // Already handled
+                    break;
+                }
+            }
+            break;
         }
-        // XXX: More LD variants
+
+        case Tokenizer::OpcodeOperand::Type::K:
+            Logger::fatal << "LD: Left-side operand can't be K" << Logger::End;
+            break;
+
+        case Tokenizer::OpcodeOperand::Type::Uint:
+        case Tokenizer::OpcodeOperand::Type::Empty: // Make the compiler happy
+            Logger::fatal << "LD: Destination can't be a constant value" << Logger::End;
+            break;
+
+        case Tokenizer::OpcodeOperand::Type::F: // LD F, Vx
+            output.append16(0xf029 |
+                    (Tokenizer::vRegisterToNibble(opcode->operand1.getAsRegister()) << 8));
+            break;
+
+        case Tokenizer::OpcodeOperand::Type::B: // LD B, Vx
+            output.append16(0xf033 |
+                    (Tokenizer::vRegisterToNibble(opcode->operand1.getAsRegister()) << 8));
+            break;
+        }
         break;
 
     case Tokenizer::OPCODE_ADD:
-        output.append16(0x7000 |
-                (Tokenizer::vRegisterToByte(opcode->operand0.getAsRegister()) << 8) |
-                (opcode->operand1.getAsUint() & 0xff));
+        if (opcode->operand0.getAsRegister() == Tokenizer::REGISTER_I) // ADD I, Vx
+        {
+            output.append16(0xf01e |
+                    (Tokenizer::vRegisterToNibble(opcode->operand1.getAsRegister()) << 8));
+        }
+        else
+        {
+            if (opcode->operand1.getType() == Tokenizer::OpcodeOperand::Type::Uint) // ADD Vx, byte
+            {
+                output.append16(0x7000 |
+                        (Tokenizer::vRegisterToNibble(opcode->operand0.getAsRegister()) << 8) |
+                        (opcode->operand1.getAsUint() & 0xff));
+            }
+            else // ADD Vx, Vy
+            {
+                output.append16(0x8004 |
+                        (Tokenizer::vRegisterToNibble(opcode->operand0.getAsRegister()) << 8) |
+                        (Tokenizer::vRegisterToNibble(opcode->operand1.getAsRegister()) << 4));
+            }
+        }
         break;
 
     case Tokenizer::OPCODE_OR:
         output.append16(0x8001 |
-                (Tokenizer::vRegisterToByte(opcode->operand0.getAsRegister()) << 8) |
-                (Tokenizer::vRegisterToByte(opcode->operand1.getAsRegister()) << 4));
+                (Tokenizer::vRegisterToNibble(opcode->operand0.getAsRegister()) << 8) |
+                (Tokenizer::vRegisterToNibble(opcode->operand1.getAsRegister()) << 4));
         break;
 
     case Tokenizer::OPCODE_AND:
         output.append16(0x8002 |
-                (Tokenizer::vRegisterToByte(opcode->operand0.getAsRegister()) << 8) |
-                (Tokenizer::vRegisterToByte(opcode->operand1.getAsRegister()) << 4));
+                (Tokenizer::vRegisterToNibble(opcode->operand0.getAsRegister()) << 8) |
+                (Tokenizer::vRegisterToNibble(opcode->operand1.getAsRegister()) << 4));
         break;
 
     case Tokenizer::OPCODE_XOR:
         output.append16(0x8003 |
-                (Tokenizer::vRegisterToByte(opcode->operand0.getAsRegister()) << 8) |
-                (Tokenizer::vRegisterToByte(opcode->operand1.getAsRegister()) << 4));
+                (Tokenizer::vRegisterToNibble(opcode->operand0.getAsRegister()) << 8) |
+                (Tokenizer::vRegisterToNibble(opcode->operand1.getAsRegister()) << 4));
         break;
 
     case Tokenizer::OPCODE_SUB:
         output.append16(0x8005 |
-                (Tokenizer::vRegisterToByte(opcode->operand0.getAsRegister()) << 8) |
-                (Tokenizer::vRegisterToByte(opcode->operand1.getAsRegister()) << 4));
+                (Tokenizer::vRegisterToNibble(opcode->operand0.getAsRegister()) << 8) |
+                (Tokenizer::vRegisterToNibble(opcode->operand1.getAsRegister()) << 4));
         break;
 
     case Tokenizer::OPCODE_SHR:
         output.append16(0x8006 |
-                (Tokenizer::vRegisterToByte(opcode->operand0.getAsRegister()) << 8) |
-                (Tokenizer::vRegisterToByte(opcode->operand1.getAsRegister()) << 4));
+                (Tokenizer::vRegisterToNibble(opcode->operand0.getAsRegister()) << 8) |
+                (Tokenizer::vRegisterToNibble(opcode->operand1.getAsRegister()) << 4));
         break;
 
     case Tokenizer::OPCODE_SUBN:
         output.append16(0x8007 |
-                (Tokenizer::vRegisterToByte(opcode->operand0.getAsRegister()) << 8) |
-                (Tokenizer::vRegisterToByte(opcode->operand1.getAsRegister()) << 4));
+                (Tokenizer::vRegisterToNibble(opcode->operand0.getAsRegister()) << 8) |
+                (Tokenizer::vRegisterToNibble(opcode->operand1.getAsRegister()) << 4));
         break;
 
     case Tokenizer::OPCODE_SHL:
         output.append16(0x800e |
-                (Tokenizer::vRegisterToByte(opcode->operand0.getAsRegister()) << 8) |
-                (Tokenizer::vRegisterToByte(opcode->operand1.getAsRegister()) << 4));
+                (Tokenizer::vRegisterToNibble(opcode->operand0.getAsRegister()) << 8) |
+                (Tokenizer::vRegisterToNibble(opcode->operand1.getAsRegister()) << 4));
         break;
 
     case Tokenizer::OPCODE_RND:
         output.append16(0xc000 |
-                (Tokenizer::vRegisterToByte(opcode->operand0.getAsRegister()) << 8) |
+                (Tokenizer::vRegisterToNibble(opcode->operand0.getAsRegister()) << 8) |
                 (opcode->operand1.getAsUint() & 0xff));
         break;
 
     case Tokenizer::OPCODE_DRW:
-        output.append16(0x8000 |
-                (Tokenizer::vRegisterToByte(opcode->operand0.getAsRegister()) << 8) |
-                (Tokenizer::vRegisterToByte(opcode->operand1.getAsRegister()) << 4) |
-                (opcode->operand1.getAsUint() & 0x0f));
+        output.append16(0xd000 |
+                (Tokenizer::vRegisterToNibble(opcode->operand0.getAsRegister()) << 8) |
+                (Tokenizer::vRegisterToNibble(opcode->operand1.getAsRegister()) << 4) |
+                (opcode->operand2.getAsUint() & 0x0f));
         break;
 
     case Tokenizer::OPCODE_SKP:
         output.append16(0xe09e |
-                (Tokenizer::vRegisterToByte(opcode->operand0.getAsRegister()) << 8));
+                (Tokenizer::vRegisterToNibble(opcode->operand0.getAsRegister()) << 8));
         break;
 
     case Tokenizer::OPCODE_SKNP:
-        output.append16(0xe09e |
-                (Tokenizer::vRegisterToByte(opcode->operand0.getAsRegister()) << 8));
+        output.append16(0xe0a1 |
+                (Tokenizer::vRegisterToNibble(opcode->operand0.getAsRegister()) << 8));
         break;
 
     case Tokenizer::OPCODE_INVALID:

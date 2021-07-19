@@ -69,10 +69,10 @@ bool isVRegister(RegisterEnum reg)
     }
 }
 
-uint8_t vRegisterToByte(RegisterEnum reg)
+uint8_t vRegisterToNibble(RegisterEnum reg)
 {
     assert(isVRegister(reg));
-    return (uint8_t)reg;
+    return uint8_t(reg & 0xf);
 }
 
 tokenList_t tokenize(const std::string& str, const::std::string& filename)
@@ -160,6 +160,11 @@ tokenList_t tokenize(const std::string& str, const::std::string& filename)
                         operand.setB();
                         Logger::dbg << "B operand" << Logger::End;
                     }
+                    else if (strToLower(operandStr).compare("k") == 0)
+                    {
+                        operand.setK();
+                        Logger::dbg << "K operand" << Logger::End;
+                    }
                     else // Should be an integer constant
                     {
                         try
@@ -200,14 +205,27 @@ tokenList_t tokenize(const std::string& str, const::std::string& filename)
             if (operand2Str.size() && processOperand(operand2Str, token->operand2))
                 continue;
 
-            // Only LD can hava F and B as operands
-            if (opcode != OPCODE_LD
-             &&(token->operand0.getType() == Tokenizer::OpcodeOperand::Type::F
+            // Possible variants:
+            // LD:
+            //   with F or B as first argument
+            //   or with K as second argument
+            if ((opcode != OPCODE_LD && (
+                token->operand0.getType() == Tokenizer::OpcodeOperand::Type::F
              || token->operand0.getType() == Tokenizer::OpcodeOperand::Type::B
+             || token->operand0.getType() == Tokenizer::OpcodeOperand::Type::K
              || token->operand1.getType() == Tokenizer::OpcodeOperand::Type::F
              || token->operand1.getType() == Tokenizer::OpcodeOperand::Type::B
+             || token->operand1.getType() == Tokenizer::OpcodeOperand::Type::K
              || token->operand2.getType() == Tokenizer::OpcodeOperand::Type::F
-             || token->operand2.getType() == Tokenizer::OpcodeOperand::Type::B))
+             || token->operand2.getType() == Tokenizer::OpcodeOperand::Type::B
+             || token->operand2.getType() == Tokenizer::OpcodeOperand::Type::K))
+             || (opcode == OPCODE_LD && (
+                token->operand1.getType() == Tokenizer::OpcodeOperand::Type::F
+             || token->operand1.getType() == Tokenizer::OpcodeOperand::Type::B
+             || token->operand2.getType() == Tokenizer::OpcodeOperand::Type::F
+             || token->operand2.getType() == Tokenizer::OpcodeOperand::Type::B
+             || token->operand0.getType() == Tokenizer::OpcodeOperand::Type::K
+             || token->operand2.getType() == Tokenizer::OpcodeOperand::Type::K)))
             {
                 goto print_syntax_error;
             }

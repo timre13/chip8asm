@@ -122,12 +122,12 @@ constexpr const char* const registerNames[] = {
     "vf",
     "i",
     "[i]",
-    "st",
     "dt",
+    "st",
 };
 [[nodiscard]] RegisterEnum registerStrToEnum(std::string reg);
 [[nodiscard]] bool isVRegister(RegisterEnum reg);
-[[nodiscard]] uint8_t vRegisterToByte(RegisterEnum reg);
+[[nodiscard]] uint8_t vRegisterToNibble(RegisterEnum reg);
 
 class OpcodeOperand
 {
@@ -139,6 +139,7 @@ public:
         Register, // Register
         F,        // Used by LD
         B,        // Used by LD
+        K,        // Used by LD
     };
 
 private:
@@ -151,13 +152,14 @@ private:
 
 public:
     inline Type getType() const { return m_type; }
-    inline uint16_t getAsUint() const { assert(m_type == Type::Uint); return m_uint & 0x0fff; }
+    inline uint16_t getAsUint() const { assert(m_type == Type::Uint); return m_uint; }
     inline RegisterEnum getAsRegister() const { assert(m_type == Type::Register); return m_vRegister; }
 
-    inline void setUint(uint8_t value) { m_uint = value; m_type = Type::Uint; }
+    inline void setUint(uint16_t value) { m_uint = value; m_type = Type::Uint; }
     inline void setRegister(RegisterEnum reg) { m_vRegister = reg; m_type = Type::Register; }
     inline void setF() { m_type = Type::F; }
     inline void setB() { m_type = Type::B; }
+    inline void setK() { m_type = Type::K; }
 };
 
 class Opcode final : public Token
