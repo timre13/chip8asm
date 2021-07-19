@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include "InputFile.h"
 #include "Logger.h"
 #include "tokenizer.h"
@@ -20,6 +21,13 @@ int main(int argc, char** argv)
 
     ByteList output = generateBinary(tokenList);
     Logger::dbg << "Assembled to " << output.size() << " bytes" << Logger::End;
+
+    Logger::dbg << "Writing output" << Logger::End;
+    std::ofstream outputFile{"output.ch8", std::ios_base::binary};
+    outputFile.write((const char*)output.data(), output.size());
+    outputFile.close();
+
+    Logger::log << "Wrote output to file \"output.ch8\"" << Logger::End;
 
     return 0;
 }
