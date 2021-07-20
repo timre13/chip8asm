@@ -19,14 +19,61 @@ private:
     int m_lineNumber{};
 
 public:
-    virtual inline ~Token(){}
-
     virtual inline void setLineNumber(int value) { m_lineNumber = value; }
     virtual inline int getLineNumber() const { return m_lineNumber; }
     virtual inline std::string getLineNumberStr() const { return m_lineNumber > 0 ? std::to_string(m_lineNumber) : "?"; }
+
+    virtual inline ~Token(){}
 };
 
 using tokenList_t = std::vector<std::shared_ptr<Token>>;
+
+//--------------------------------- Label --------------------------------------
+
+class LabelReference final : public Token
+{
+public:
+    std::string name;
+};
+[[nodiscard]] inline bool isValidLabelName(const std::string& str)
+{
+    if (isdigit(str[0]))
+            return false;
+    for (size_t i{}; i < str.size(); ++i)
+    {
+        if (!std::isalnum(str[i]) && str[i] != '_')
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+class LabelDeclaration final : public Token
+{
+public:
+    std::string name;
+    uint16_t address;
+};
+[[nodiscard]] inline bool isLabelDeclaration(const std::string& str)
+{
+    return str[str.length()-1] == ':' && isValidLabelName(str.substr(0, str.size()-1));
+}
+
+//--------------------------------- Macro --------------------------------------
+
+enum MacroType
+{
+    MACROTYPE_INCLUDE,
+    MACROTYPE_DEFINE,
+};
+
+class Macro final : public Token
+{
+public:
+    MacroType type;
+    std::string argument;
+};
 
 //------------------------------------ Opcode ----------------------------------
 
@@ -162,11 +209,12 @@ public:
     enum class Type
     {
         Empty,
-        Uint,     // Byte (8 bits), nibble (4 bits) or address (12 bits)
-        Register, // Register
-        F,        // Used by LD
-        B,        // Used by LD
-        K,        // Used by LD
+        Uint,           // Byte (8 bits), nibble (4 bits) or address (12 bits)
+        Register,       // Register
+        LabelReference, // A label is used
+        F,              // Used by LD
+        B,              // Used by LD
+        K,              // Used by LD
     };
 
 private:
@@ -175,18 +223,25 @@ private:
     {
         uint16_t m_uint = 0;
         RegisterEnum m_vRegister;
+        LabelReference m_label;
     };
 
 public:
+    inline OpcodeOperand() {}
+
     inline Type getType() const { return m_type; }
     inline uint16_t getAsUint() const { assert(m_type == Type::Uint); return m_uint; }
     inline RegisterEnum getAsRegister() const { assert(m_type == Type::Register); return m_vRegister; }
+    inline LabelReference getAsLabel() const { assert(m_type == Type::LabelReference); return m_label; }
 
     inline void setUint(uint16_t value) { m_uint = value; m_type = Type::Uint; }
     inline void setRegister(RegisterEnum reg) { m_vRegister = reg; m_type = Type::Register; }
     inline void setF() { m_type = Type::F; }
     inline void setB() { m_type = Type::B; }
     inline void setK() { m_type = Type::K; }
+    inline void setAsLabel(const std::string& labelName) { m_label.name = labelName; m_type = Type::LabelReference; }
+
+    virtual inline ~OpcodeOperand(){}
 };
 
 class Opcode final : public Token
@@ -196,36 +251,13 @@ public:
     OpcodeOperand operand0;
     OpcodeOperand operand1;
     OpcodeOperand operand2;
-};
 
-//--------------------------------- Label --------------------------------------
-
-class Label final : public Token
-{
-public:
-    std::string name;
-    uint16_t address : 13;
-};
-
-//--------------------------------- Macro --------------------------------------
-
-enum MacroType
-{
-    MACROTYPE_INCLUDE,
-    MACROTYPE_DEFINE,
-};
-
-class Macro final : public Token
-{
-public:
-    MacroType type;
-    std::string argument;
+    inline Opcode() {}
 };
 
 //------------------------------------------------------------------------------
 
 [[nodiscard]] inline bool isComment(const std::string& str) { return str[0] == ';'; }
-[[nodiscard]] inline bool isLabel(const std::string& str) { return str[str.length()-1] == ':'; }
 [[nodiscard]] inline std::string strToLower(std::string str)
 {
     for (size_t i{}; i < str.size(); ++i)

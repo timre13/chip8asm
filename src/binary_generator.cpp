@@ -3,8 +3,13 @@
 #include "Logger.h"
 #include "common.h"
 #include <utility>
+#include <map>
 
-static void handleOpcode(const Tokenizer::Opcode* opcode, ByteList& output)
+#define ROM_LOAD_OFFSET 0x200
+
+using labelMap_t = std::map<std::string, uint16_t>;
+
+static void handleOpcode(const Tokenizer::Opcode* opcode, ByteList& output, const labelMap_t& labels)
 {
     auto printErrorIfWrongNumOfOps{
         [&opcode = std::as_const(opcode)](int maxArgs){
@@ -84,14 +89,32 @@ static void handleOpcode(const Tokenizer::Opcode* opcode, ByteList& output)
             printErrorIfWrongNumOfOps(2);
             if (opcode->operand0.getAsRegister() != Tokenizer::REGISTER_V0)
                 Logger::fatal << "Register-relative jump is only possible with register V0" << Logger::End;
-            output.append16(0xb000 |
-                    (opcode->operand0.getAsUint() & 0x0fff));
+            if (opcode->operand1.getType() == Tokenizer::OpcodeOperand::Type::Uint)
+            {
+                output.append16(0xb000 |
+                        (opcode->operand1.getAsUint() & 0x0fff));
+            }
+            else if (opcode->operand1.getType() == Tokenizer::OpcodeOperand::Type::LabelReference)
+            {
+                output.append16(0xb000 |
+                        (labels.find(opcode->operand0.getAsLabel().name)->second & 0x0fff));
+            }
+            else
+            {
+                Logger::fatal << "JP V0 requires an address" << Logger::End;
+            }
             break;
 
         case Tokenizer::OpcodeOperand::Type::Uint: // JP addr
             printErrorIfWrongNumOfOps(1);
             output.append16(0x1000 |
                     (opcode->operand0.getAsUint() & 0x0fff));
+            break;
+
+        case Tokenizer::OpcodeOperand::Type::LabelReference: // JP addr
+            printErrorIfWrongNumOfOps(1);
+            output.append16(0x1000 |
+                    (labels.find(opcode->operand0.getAsLabel().name)->second & 0x0fff));
             break;
 
         case Tokenizer::OpcodeOperand::Type::F:
@@ -104,10 +127,20 @@ static void handleOpcode(const Tokenizer::Opcode* opcode, ByteList& output)
 
     case Tokenizer::OPCODE_CALL:
         printErrorIfWrongNumOfOps(1);
-        if (opcode->operand0.getType() != Tokenizer::OpcodeOperand::Type::Uint)
+        if (opcode->operand0.getType() == Tokenizer::OpcodeOperand::Type::Uint)
+        {
+            output.append16(0x2000 |
+                    (opcode->operand0.getAsUint() & 0x0fff));
+        }
+        else if (opcode->operand0.getType() == Tokenizer::OpcodeOperand::Type::LabelReference)
+        {
+            output.append16(0x2000 |
+                    (labels.find(opcode->operand0.getAsLabel().name)->second & 0x0fff));
+        }
+        else
+        {
             Logger::fatal << "CALL opcode requires a constant value" << Logger::End;
-        output.append16(0x2000 |
-                (opcode->operand0.getAsUint() & 0x0fff));
+        }
         break;
 
     case Tokenizer::OPCODE_SE:
@@ -154,8 +187,20 @@ static void handleOpcode(const Tokenizer::Opcode* opcode, ByteList& output)
         {
             if (opcode->operand0.getAsRegister() == Tokenizer::REGISTER_I) // LD I, addr
             {
-                output.append16(0xa000 |
-                        (opcode->operand1.getAsUint() & 0x0fff));
+                if (opcode->operand1.getType() == Tokenizer::OpcodeOperand::Type::Uint)
+                {
+                    output.append16(0xa000 |
+                            (opcode->operand1.getAsUint() & 0x0fff));
+                }
+                else if (opcode->operand1.getType() == Tokenizer::OpcodeOperand::Type::LabelReference)
+                {
+                    output.append16(0xa000 |
+                            (labels.find(opcode->operand0.getAsLabel().name)->second & 0x0fff));
+                }
+                else
+                {
+                    Logger::fatal << "LD can only load constant value to I" << Logger::End;
+                }
             }
             else if (opcode->operand0.getAsRegister() == Tokenizer::REGISTER_I_ADDR) // LD [I], Vx
             {
@@ -218,6 +263,10 @@ static void handleOpcode(const Tokenizer::Opcode* opcode, ByteList& output)
                     Logger::fatal << "LD: Right-side operand can't be B" << Logger::End;
                     break;
 
+                case Tokenizer::OpcodeOperand::Type::LabelReference:
+                    Logger::fatal << "LD: Can't load address into a Vx register" << Logger::End;
+                    break;
+
                 case Tokenizer::OpcodeOperand::Type::Empty:
                     // Already handled
                     break;
@@ -231,6 +280,7 @@ static void handleOpcode(const Tokenizer::Opcode* opcode, ByteList& output)
             break;
 
         case Tokenizer::OpcodeOperand::Type::Uint:
+        case Tokenizer::OpcodeOperand::Type::LabelReference:
         case Tokenizer::OpcodeOperand::Type::Empty: // Make the compiler happy
             Logger::fatal << "LD: Destination can't be a constant value" << Logger::End;
             break;
@@ -344,14 +394,33 @@ static void handleOpcode(const Tokenizer::Opcode* opcode, ByteList& output)
 ByteList generateBinary(const Tokenizer::tokenList_t& tokens)
 {
     ByteList output;
+    labelMap_t labels;
 
     for (auto& token : tokens)
     {
         auto opcode = dynamic_cast<Tokenizer::Opcode*>(token.get());
+        auto labelDecl = dynamic_cast<Tokenizer::LabelDeclaration*>(token.get());
         if (opcode)
         {
-            handleOpcode(opcode, output);
-            continue;
+            handleOpcode(opcode, output, labels);
+        }
+        else if (labelDecl)
+        {
+            // We finally know the address, so we can fill the field
+            labelDecl->address = ROM_LOAD_OFFSET + output.size();
+            Logger::dbg << "Label declaration \"" << labelDecl->name << "\" at 0x" << std::hex << labelDecl->address << std::dec << Logger::End;
+            auto foundLabel = labels.find(labelDecl->name);
+            if (foundLabel != labels.end())
+            {
+                Logger::fatal << "Label redeclared: \"" << labelDecl->name
+                    << "\", original address: 0x" << std::hex << foundLabel->second <<
+                    ", new address: 0x" << labelDecl->address << Logger::End;
+            }
+            labels.insert({labelDecl->name, (uint16_t)labelDecl->address});
+        }
+        else
+        {
+            assert(false); // Invalid token pointer
         }
     }
 

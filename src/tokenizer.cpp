@@ -3,6 +3,7 @@
 #include "common.h"
 #include <cctype>
 #include <cstdlib>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <sstream>
@@ -130,11 +131,14 @@ tokenList_t tokenize(const std::string& str, const::std::string& filename)
 
         Logger::dbg << "Word: " << '"' << word << '"' << Logger::End;
 
-        if (isLabel(word))
+        if (isLabelDeclaration(word))
         {
-            Logger::dbg << "Found a label: \"" << word.substr(0, word.length()-1) << '"' << Logger::End;
-            // XXX: Implement labels
-            TODO();
+            Logger::dbg << "Found a label declaration: \"" << word.substr(0, word.length()-1) << '"' << Logger::End;
+
+            auto label = std::make_shared<LabelDeclaration>();
+            label->name = word.substr(0, word.length()-1);
+            // `address` field is filled later
+            tokens.push_back(std::move(label));
             continue;
         }
 
@@ -168,7 +172,7 @@ tokenList_t tokenize(const std::string& str, const::std::string& filename)
                         operand.setK();
                         Logger::dbg << "K operand" << Logger::End;
                     }
-                    else // Should be an integer constant
+                    else if (std::isdigit(operandStr[0])) // Probably an integer constant
                     {
                         try
                         {
@@ -190,6 +194,15 @@ tokenList_t tokenize(const std::string& str, const::std::string& filename)
                             return true;
                         }
                     }
+                    else if (isValidLabelName(operandStr)) // Probably a label reference
+                    {
+                        Logger::dbg << "Label reference to \"" << operandStr << '"' << Logger::End;
+                        operand.setAsLabel(operandStr);
+                    }
+                    else
+                    {
+                        return true;
+                    }
                     return false;
                 }
             };
@@ -201,12 +214,48 @@ tokenList_t tokenize(const std::string& str, const::std::string& filename)
             Logger::dbg << "Operand 0: \"" << operand0Str << "\", operand 1: \"" << operand1Str << "\", operand 2: \"" << operand2Str << '"' << Logger::End;
             auto token = std::make_shared<Opcode>();
             token->opcode = opcode;
-            if (operand0Str.size() && processOperand(operand0Str, token->operand0))
-                continue;
-            if (operand1Str.size() && processOperand(operand1Str, token->operand1))
-                continue;
-            if (operand2Str.size() && processOperand(operand2Str, token->operand2))
-                continue;
+
+            // Don't try to parse comment after opcode as operands
+            bool hasCommentStarted = false;
+
+            if (operand0Str.size())
+            {
+                if (isComment(operand0Str))
+                {
+                    hasCommentStarted = true;
+                }
+                else
+                {
+                    if (processOperand(operand0Str, token->operand0))
+                        continue; // Error, skip
+                }
+            }
+
+            if (operand1Str.size() && !hasCommentStarted)
+            {
+                if (isComment(operand1Str))
+                {
+                    hasCommentStarted = true;
+                }
+                else
+                {
+                    if (processOperand(operand1Str, token->operand1))
+                        continue; // Error, skip
+                }
+            }
+
+            if (operand2Str.size() && !hasCommentStarted)
+            {
+                if (isComment(operand2Str))
+                {
+                    hasCommentStarted = true;
+                }
+                else
+                {
+                    if (processOperand(operand2Str, token->operand2))
+                        continue; // Error, skip
+                }
+            }
 
             // Possible variants:
             // LD:
