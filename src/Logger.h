@@ -2,6 +2,13 @@
 
 #include <iostream>
 
+#define LOGGER_COLOR_DEF   "\033[0m"
+#define LOGGER_COLOR_DBG   "\033[96m"
+#define LOGGER_COLOR_LOG   "\033[32m"
+#define LOGGER_COLOR_WARN  "\033[33m"
+#define LOGGER_COLOR_ERR   "\033[91m"
+#define LOGGER_COLOR_FATAL "\033[101;97m"
+
 namespace Logger
 {
 
@@ -61,11 +68,11 @@ public:
         // depending on the logger type
         switch (m_type)
         {
-        case Type::Debug:   std::cout << (m_isBeginning ? "[DBG]: " : "")   << value; break;
-        case Type::Log:     std::cout <<                                       value; break;
-        case Type::Warning: std::cerr << (m_isBeginning ? "[WARN]: " : "")  << value; break;
-        case Type::Error:   std::cerr << (m_isBeginning ? "[ERR]: " : "")   << value; break;
-        case Type::Fatal:   std::cerr << (m_isBeginning ? "[FATAL]: " : "") << value; break;
+        case Type::Debug:   std::cout << (m_isBeginning ? LOGGER_COLOR_DBG "[DBG]" LOGGER_COLOR_DEF ": " : "") << value; break;
+        case Type::Log:     std::cout << (m_isBeginning ? LOGGER_COLOR_LOG "[INFO]" LOGGER_COLOR_DEF ": " : "") << value; break;
+        case Type::Warning: std::cerr << (m_isBeginning ? LOGGER_COLOR_WARN "[WARN]" LOGGER_COLOR_DEF ": " : "")  << value; break;
+        case Type::Error:   std::cerr << (m_isBeginning ? LOGGER_COLOR_ERR "[ERR]" LOGGER_COLOR_DEF ": " : "")   << value; break;
+        case Type::Fatal:   std::cerr << (m_isBeginning ? LOGGER_COLOR_FATAL "[FATAL]" LOGGER_COLOR_DEF ": " : "") << value; break;
         default: abort();
         }
 
