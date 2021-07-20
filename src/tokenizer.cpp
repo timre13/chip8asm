@@ -29,13 +29,16 @@ OpcodeEnum opcodeStrToEnum(std::string opcode)
 
 RegisterEnum registerStrToEnum(std::string reg)
 {
+    if (reg.empty())
+        return REGISTER_INVALID;
+
     reg = strToLower(reg);
 
     // TODO: Is this UB?
 
     for (int en{}; en < REGISTER_INVALID; ++en)
     {
-        if (reg.compare(registerNames[en]) == 0)
+        if (reg.compare(registerNames[en]) == 0 || reg.compare(alternateVRegisterNames[en]) == 0)
         {
             return (RegisterEnum)en;
         }
