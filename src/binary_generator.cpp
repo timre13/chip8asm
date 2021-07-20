@@ -129,9 +129,21 @@ static void handleOpcode(const Tokenizer::Opcode* opcode, ByteList& output)
         break;
 
     case Tokenizer::OPCODE_SNE:
-        output.append16(0x4000 |
-                (Tokenizer::vRegisterToNibble(opcode->operand0.getAsRegister()) << 8) |
-                (opcode->operand1.getAsUint() & 0xff));
+        printErrorIfWrongNumOfOps(2);
+        if (opcode->operand0.getType() != Tokenizer::OpcodeOperand::Type::Register)
+            Logger::fatal << "SNE opcode requires a register name as left argument" << Logger::End;
+        if (opcode->operand1.getType() == Tokenizer::OpcodeOperand::Type::Uint) // SNE Vx, byte
+        {
+            output.append16(0x4000 |
+                    (Tokenizer::vRegisterToNibble(opcode->operand0.getAsRegister()) << 8) |
+                    (opcode->operand1.getAsUint() & 0xff));
+        }
+        else // SNE Vx, Vy
+        {
+            output.append16(0x9000 |
+                    (Tokenizer::vRegisterToNibble(opcode->operand0.getAsRegister()) << 8) |
+                    Tokenizer::vRegisterToNibble(opcode->operand1.getAsRegister()) << 4);
+        }
         break;
 
     case Tokenizer::OPCODE_LD:
