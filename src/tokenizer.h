@@ -32,6 +32,8 @@ using tokenList_t = std::vector<std::shared_ptr<Token>>;
 
 enum OpcodeEnum
 {
+    OPCODE_NOP,
+    OPCODE_SYS,
     OPCODE_CLS,
     OPCODE_RET,
     OPCODE_JP,
@@ -55,6 +57,8 @@ enum OpcodeEnum
 };
 
 constexpr const char* const opcodeNames[] = {
+    "nop",
+    "sys",
     "cls",
     "ret",
     "jp",

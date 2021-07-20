@@ -46,6 +46,23 @@ static void handleOpcode(const Tokenizer::Opcode* opcode, ByteList& output)
     Logger::dbg << "Opcode: " << opcode->opcode << Logger::End;
     switch (opcode->opcode)
     {
+    case Tokenizer::OPCODE_NOP:
+        printErrorIfWrongNumOfOps(0);
+        output.append16(0x0000);
+        break;
+
+    case Tokenizer::OPCODE_SYS:
+        if (opcode->operand0.getType() == Tokenizer::OpcodeOperand::Type::Uint)
+        {
+            output.append16(0x0000 |
+                    (opcode->operand0.getAsUint() & 0x0fff));
+        }
+        else
+        {
+            output.append16(0x0000);
+        }
+        break;
+
     case Tokenizer::OPCODE_CLS:
         printErrorIfWrongNumOfOps(0);
         output.append16(0x00e0);
