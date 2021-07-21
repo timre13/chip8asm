@@ -1,33 +1,50 @@
 #include <iostream>
 #include <fstream>
+#include <iomanip>
 #include "InputFile.h"
 #include "Logger.h"
 #include "tokenizer.h"
 #include "binary_generator.h"
+#include "arguments.h"
 
 int main(int argc, char** argv)
 {
-    //std::cout << "Copyright (c) 2021 Imre Törteli\n\n";
-    Logger::setLoggerVerbosity(Logger::LoggerVerbosity::Debug);
-
-    if (argc < 2)
-        Logger::fatal << "Usage: " << argv[0] << " <file>" << Logger::End;
+    auto args = parseArgs(argc, argv);
+    Logger::setLoggerVerbosity(args.verbosity);
 
     InputFile file;
-    file.open(argv[1]);
+    file.open(args.inputFilePath);
 
     auto tokenList = Tokenizer::tokenize(file.getContent(), file.getFilePath());
     Logger::dbg << "Found " << tokenList.size() << " tokens" << Logger::End;
 
     ByteList output = generateBinary(tokenList);
-    Logger::dbg << "Assembled to " << output.size() << " bytes" << Logger::End;
+    Logger::log << "Assembled to " << output.size() << " bytes" << Logger::End;
 
     Logger::dbg << "Writing output" << Logger::End;
-    std::ofstream outputFile{"output.ch8", std::ios_base::binary};
-    outputFile.write((const char*)output.data(), output.size());
-    outputFile.close();
+    if (args.outputFilePath.compare("-") == 0)
+    {
+        std::cout << std::hex << std::setfill('0');
+        for (size_t i{}; i < output.size(); ++i)
+        {
+            if (i != 0 && i % 16 == 0)
+                std::cout << '\n';
+            std::cout << std::setw(2) << +output[i] << ' ';
+        }
+        std::cout << std::dec << '\n';
+    }
+    else
+    {
+        std::ofstream outputFile{args.outputFilePath, std::ios_base::binary};
+        outputFile.write((const char*)output.data(), output.size());
+        if (outputFile.fail())
+        {
+            Logger::fatal << "Failed to write to file: \"" << args.outputFilePath << '"' << Logger::End;
+        }
+        outputFile.close();
 
-    Logger::log << "Wrote output to file \"output.ch8\"" << Logger::End;
+        Logger::log << "Wrote output to file \"" << args.outputFilePath << '"' << Logger::End;
+    }
 
     return 0;
 }

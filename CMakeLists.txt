@@ -13,5 +13,6 @@ add_executable(asm
     src/InputFile.cpp
     src/tokenizer.cpp
     src/binary_generator.cpp
+    src/arguments.cpp
 )
 
