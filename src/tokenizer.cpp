@@ -80,6 +80,28 @@ uint8_t vRegisterToNibble(RegisterEnum reg)
     return uint8_t(reg & 0xf);
 }
 
+static char escapedCharToChar(char character, bool isString=false)
+{
+    if (isString && character == '"')
+        return '"';
+    else if (character == '\'')
+        return '\'';
+
+    switch (character)
+    {
+    case '0':  return '\0';
+    case 'a':  return '\a';
+    case 'b':  return '\b';
+    case 't':  return '\t';
+    case 'v':  return '\v';
+    case 'f':  return '\f';
+    case 'r':  return '\r';
+    case 'n':  return '\n';
+    case '\\': return '\\';
+    default: throw std::invalid_argument{""};
+    }
+}
+
 static unsigned int stringToUint(const std::string& str, unsigned int limit)
 {
     Logger::dbg << "Converting \"" + str + "\" to integer" << Logger::End;
@@ -107,19 +129,13 @@ static unsigned int stringToUint(const std::string& str, unsigned int limit)
     }
     else if (str.length() == 4 && str[0] == '\'' && str[1] == '\\' && str[3] == '\'') // Escaped character
     {
-        switch (str[2])
+        try
         {
-        case '0': integer = '\0'; break;
-        case 'a': integer = '\a'; break;
-        case 'b': integer = '\b'; break;
-        case 't': integer = '\t'; break;
-        case 'v': integer = '\v'; break;
-        case 'f': integer = '\f'; break;
-        case 'r': integer = '\r'; break;
-        case 'n': integer = '\n'; break;
-        case '\'': integer = '\''; break;
-        case '\\': integer = '\\'; break;
-        default: throw std::invalid_argument{"Invalid escape sequence: "+str};
+            integer = escapedCharToChar(str[2]);
+        }
+        catch (std::exception&)
+        {
+            throw std::invalid_argument{"Invalid escape sequence: "+str};
         }
     }
     else
@@ -380,7 +396,34 @@ tokenList_t tokenize(const std::string& str, const::std::string& filename)
                     word = getWord();
                     if (word.empty() || isComment(word))
                         break;
-                    def->arguments.push_back(stringToUint(word, 255));
+
+                    Logger::dbg << "DB argument: " << word << Logger::End;
+
+                    if (word.size() > 1 && word[0] == '"' && word[word.size()-1] == '"' && word[word.size()-2] != '\\')
+                    {
+                        for (size_t i{1}; i < word.size()-1; ++i)
+                        {
+                            if (word[i] == '\\') // Escaped character
+                            {
+                                try
+                                {
+                                    def->arguments.push_back(escapedCharToChar(word[++i], true));
+                                }
+                                catch (std::exception&)
+                                {
+                                    throw std::invalid_argument{"Invalid escape sequence"};
+                                }
+                            }
+                            else
+                            {
+                                def->arguments.push_back(word[i]);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        def->arguments.push_back(stringToUint(word, 255));
+                    }
                 }
             }
             catch (std::exception& e)
