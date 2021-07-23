@@ -79,6 +79,16 @@ uint8_t vRegisterToNibble(RegisterEnum reg)
     return uint8_t(reg & 0xf);
 }
 
+static unsigned int stringToUint(const std::string& str, unsigned int limit)
+{
+    // TODO: Support binary base
+    // TODO: Support character literals
+    unsigned int integer = std::stoul(str, 0, 0);
+    if ((unsigned int)integer > limit)
+        throw std::out_of_range{"Integer value \"" + str + "\" cannot fit in range."};
+    return integer;
+}
+
 tokenList_t tokenize(const std::string& str, const::std::string& filename)
 {
     tokenList_t tokens;
@@ -126,6 +136,8 @@ tokenList_t tokenize(const std::string& str, const::std::string& filename)
         };
         std::string word = getWord();
 
+        // TODO: Refactor this whole block
+
         if (isComment(word))
             continue;
 
@@ -143,6 +155,7 @@ tokenList_t tokenize(const std::string& str, const::std::string& filename)
         }
 
         OpcodeEnum opcode = opcodeStrToEnum(word);
+        std::string lowerWord = strToLower(word);
         if (opcode != OPCODE_INVALID)
         {
             auto processOperand{ // -> bool: true if error happened, false otherwise
@@ -176,10 +189,7 @@ tokenList_t tokenize(const std::string& str, const::std::string& filename)
                     {
                         try
                         {
-                            // TODO: Support binary base
-                            int integer = std::stoi(operandStr, 0, 0);
-                            if ((unsigned int)integer > 0x0fff)
-                                throw std::out_of_range{"Value cannot fit in one byte."};
+                            unsigned int integer = stringToUint(operandStr, 0x0fff);
                             Logger::dbg << "Integer: " << integer << Logger::End;
                             operand.setUint(integer);
                         }
@@ -284,6 +294,52 @@ tokenList_t tokenize(const std::string& str, const::std::string& filename)
 
             token->setLineNumber(lineI);
             tokens.push_back(std::move(token));
+            continue;
+        }
+        else if (lowerWord.compare("db") == 0) // Define byte
+        {
+            Logger::dbg << "Found a byte definition" << Logger::End;;
+
+            auto def = std::make_shared<DbInst>();
+            std::string word;
+            try
+            {
+                while (true)
+                {
+                    word = getWord();
+                    if (word.empty())
+                        break;
+                    def->arguments.push_back(stringToUint(word, 255));
+                }
+            }
+            catch (std::exception& e)
+            {
+                Logger::fatal << e.what() << Logger::End;
+            }
+            tokens.push_back(std::move(def));
+            continue;
+        }
+        else if (lowerWord.compare("dw") == 0) // Define word
+        {
+            Logger::dbg << "Found a word definition" << Logger::End;;
+
+            auto def = std::make_shared<DwInst>();
+            std::string word;
+            try
+            {
+                while (true)
+                {
+                    word = getWord();
+                    if (word.empty())
+                        break;
+                    def->arguments.push_back(stringToUint(word, 0xffff));
+                }
+            }
+            catch (std::exception& e)
+            {
+                Logger::fatal << e.what() << Logger::End;
+            }
+            tokens.push_back(std::move(def));
             continue;
         }
 

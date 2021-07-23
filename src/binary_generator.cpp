@@ -391,6 +391,21 @@ static void handleOpcode(const Tokenizer::Opcode* opcode, ByteList& output, cons
     }
 }
 
+static void handleDbInst(const Tokenizer::DbInst* db, ByteList& output)
+{
+    for (uint8_t data : db->arguments)
+        output.append8(data);
+
+    if (output.size() % 2)
+        Logger::warn << "Unaligned data. Instructions should only be at even addresses." << Logger::End;
+}
+
+static void handleDwInst(const Tokenizer::DwInst* dw, ByteList& output)
+{
+    for (uint16_t data : dw->arguments)
+        output.append16(data);
+}
+
 ByteList generateBinary(const Tokenizer::tokenList_t& tokens)
 {
     ByteList output;
@@ -400,6 +415,8 @@ ByteList generateBinary(const Tokenizer::tokenList_t& tokens)
     {
         auto opcode = dynamic_cast<Tokenizer::Opcode*>(token.get());
         auto labelDecl = dynamic_cast<Tokenizer::LabelDeclaration*>(token.get());
+        auto dbInst = dynamic_cast<Tokenizer::DbInst*>(token.get());
+        auto dwInst = dynamic_cast<Tokenizer::DwInst*>(token.get());
         if (opcode)
         {
             handleOpcode(opcode, output, labels);
@@ -418,9 +435,19 @@ ByteList generateBinary(const Tokenizer::tokenList_t& tokens)
             }
             labels.insert({labelDecl->name, (uint16_t)labelDecl->address});
         }
+        else if (dbInst)
+        {
+            handleDbInst(dbInst, output);
+        }
+        else if (dwInst)
+        {
+            handleDwInst(dwInst, output);
+        }
         else
         {
-            assert(false); // Invalid token pointer
+            // Invalid token pointer - current token is implemented in the tokenizer but not in the binary generator
+            // Or something is broken
+            assert(false);
         }
     }
 

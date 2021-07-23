@@ -62,6 +62,7 @@ public:
 
 //--------------------------------- Macro --------------------------------------
 
+// TODO: Implement them
 enum MacroType
 {
     MACROTYPE_INCLUDE,
@@ -254,6 +255,20 @@ public:
 
     inline Opcode() {}
 };
+
+//------------------------------------------------------------------------------
+
+template <typename T>
+class DataStoreInst : public Token
+{
+public:
+    std::vector<T> arguments;
+};
+
+// Define Byte
+using DbInst = DataStoreInst<uint8_t>;
+// Define Word
+using DwInst = DataStoreInst<uint16_t>;
 
 //------------------------------------------------------------------------------
 
