@@ -117,6 +117,7 @@ static unsigned int stringToUint(const std::string& str, unsigned int limit)
         case 'f': integer = '\f'; break;
         case 'r': integer = '\r'; break;
         case 'n': integer = '\n'; break;
+        case '\'': integer = '\''; break;
         case '\\': integer = '\\'; break;
         default: throw std::invalid_argument{"Invalid escape sequence: "+str};
         }
@@ -177,8 +178,35 @@ tokenList_t tokenize(const std::string& str, const::std::string& filename)
 
                 while (charI < line.length() && isSpace(line[charI]))
                     ++charI;
-                while (charI < line.length() && !isSpace(line[charI]))
+
+                bool isInsideSingleQuote{};
+                bool isInsideDoubleQuote{};
+                while (true)
+                {
+                    if (line[charI] == '\'' && charI && line[charI-1] != '\\')
+                    {
+                        if (isInsideSingleQuote)
+                        {
+                            word += line[charI++];
+                            break;
+                        }
+                        isInsideSingleQuote = true;
+                    }
+                    if (line[charI] == '"' && charI && line[charI-1] != '\\')
+                    {
+                        if (isInsideDoubleQuote)
+                        {
+                            word += line[charI++];
+                            break;
+                        }
+                        isInsideDoubleQuote = true;
+                    }
+
+                    // We break out if this is the end of the line or we found a space outside the quotes
+                    if (charI == line.length() || (isSpace(line[charI]) && !isInsideSingleQuote && !isInsideDoubleQuote))
+                        break;
                     word += line[charI++];
+                }
                 return word;
             }
         };
