@@ -82,14 +82,11 @@ uint8_t vRegisterToNibble(RegisterEnum reg)
 
 static unsigned int stringToUint(const std::string& str, unsigned int limit)
 {
-    // TODO: Support character literals
-
     Logger::dbg << "Converting \"" + str + "\" to integer" << Logger::End;
 
-    unsigned int integer;
+    unsigned int integer{};
     if (str.length() > 2 && str[0] == '0' && str[1] == 'b')
     {
-        integer = 0;
         for (size_t i{str.length()-1}; i >= 2; --i)
         {
             if (str[i] == '1')
@@ -100,6 +97,28 @@ static unsigned int stringToUint(const std::string& str, unsigned int limit)
             {
                 throw std::invalid_argument{"Invalid binary integer literal: "+str};
             }
+        }
+    }
+    else if (str.length() == 3 && str[0] == '\'' && str[2] == '\'') // Normal character
+    {
+        if (str[1] == '\\')
+            throw std::invalid_argument{"Spare '\\' in character literal"};
+        integer = str[1];
+    }
+    else if (str.length() == 4 && str[0] == '\'' && str[1] == '\\' && str[3] == '\'') // Escaped character
+    {
+        switch (str[2])
+        {
+        case '0': integer = '\0'; break;
+        case 'a': integer = '\a'; break;
+        case 'b': integer = '\b'; break;
+        case 't': integer = '\t'; break;
+        case 'v': integer = '\v'; break;
+        case 'f': integer = '\f'; break;
+        case 'r': integer = '\r'; break;
+        case 'n': integer = '\n'; break;
+        case '\\': integer = '\\'; break;
+        default: throw std::invalid_argument{"Invalid escape sequence: "+str};
         }
     }
     else
@@ -214,7 +233,7 @@ tokenList_t tokenize(const std::string& str, const::std::string& filename)
                         operand.setK();
                         Logger::dbg << "K operand" << Logger::End;
                     }
-                    else if (std::isdigit(operandStr[0])) // Probably an integer constant
+                    else if (std::isdigit(operandStr[0]) || operandStr[0] == '\'') // Probably an integer constant or a character
                     {
                         try
                         {
