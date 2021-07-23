@@ -340,6 +340,11 @@ tokenList_t tokenize(const std::string& str, const::std::string& filename)
             {
                 Logger::fatal << filename << ':' << lineI << ": " << e.what() << Logger::End;
             }
+
+            if (def->arguments.empty())
+            {
+                Logger::warn << "DB without data" << Logger::End;
+            }
             tokens.push_back(std::move(def));
             continue;
         }
@@ -362,6 +367,11 @@ tokenList_t tokenize(const std::string& str, const::std::string& filename)
             catch (std::exception& e)
             {
                 Logger::fatal << filename << ':' << lineI << ": " << e.what() << Logger::End;
+            }
+
+            if (def->arguments.empty())
+            {
+                Logger::warn << "DW without data" << Logger::End;
             }
             tokens.push_back(std::move(def));
             continue;
