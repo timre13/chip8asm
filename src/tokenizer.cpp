@@ -331,7 +331,7 @@ tokenList_t tokenize(const std::string& str, const::std::string& filename)
                 while (true)
                 {
                     word = getWord();
-                    if (word.empty())
+                    if (word.empty() || isComment(word))
                         break;
                     def->arguments.push_back(stringToUint(word, 255));
                 }
@@ -354,7 +354,7 @@ tokenList_t tokenize(const std::string& str, const::std::string& filename)
                 while (true)
                 {
                     word = getWord();
-                    if (word.empty())
+                    if (word.empty() || isComment(word))
                         break;
                     def->arguments.push_back(stringToUint(word, 0xffff));
                 }
