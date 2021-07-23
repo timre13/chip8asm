@@ -3,6 +3,7 @@
 #include "common.h"
 #include <cctype>
 #include <cstdlib>
+#include <exception>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -81,18 +82,46 @@ uint8_t vRegisterToNibble(RegisterEnum reg)
 
 static unsigned int stringToUint(const std::string& str, unsigned int limit)
 {
-    // TODO: Support binary base
     // TODO: Support character literals
-    unsigned int integer = std::stoul(str, 0, 0);
+
+    Logger::dbg << "Converting \"" + str + "\" to integer" << Logger::End;
+
+    unsigned int integer;
+    if (str.length() > 2 && str[0] == '0' && str[1] == 'b')
+    {
+        integer = 0;
+        for (size_t i{str.length()-1}; i >= 2; --i)
+        {
+            if (str[i] == '1')
+            {
+                integer |= 1 << ((str.length()-1)-i);
+            }
+            else if (str[i] != '0')
+            {
+                throw std::invalid_argument{"Invalid binary integer literal: "+str};
+            }
+        }
+    }
+    else
+    {
+        try
+        {
+            integer = std::stoul(str, 0, 0);
+        }
+        catch (...)
+        {
+            throw std::runtime_error{"Integer conversion failed, value: "+str};
+        }
+    }
     if ((unsigned int)integer > limit)
-        throw std::out_of_range{"Integer value \"" + str + "\" cannot fit in range."};
+        throw std::out_of_range{"Integer value \"" + str + "\" is out of range."};
     return integer;
 }
 
 tokenList_t tokenize(const std::string& str, const::std::string& filename)
 {
     tokenList_t tokens;
-    
+
     std::stringstream ss;
     ss << str;
     size_t lineI = 0;
@@ -193,14 +222,9 @@ tokenList_t tokenize(const std::string& str, const::std::string& filename)
                             Logger::dbg << "Integer: " << integer << Logger::End;
                             operand.setUint(integer);
                         }
-                        catch (std::out_of_range&)
+                        catch (std::exception& e)
                         {
-                            Logger::fatal << filename << ':' << lineI << ": Integer literal is out of range: \"" << operandStr << '"' << Logger::End;
-                            return true;
-                        }
-                        catch (std::invalid_argument&)
-                        {
-                            Logger::fatal << filename << ':' << lineI << ": Unknown value: \"" << operandStr << '"' << Logger::End;
+                            Logger::fatal << filename << ':' << lineI << ": " << e.what() << Logger::End;
                             return true;
                         }
                     }
@@ -314,7 +338,7 @@ tokenList_t tokenize(const std::string& str, const::std::string& filename)
             }
             catch (std::exception& e)
             {
-                Logger::fatal << e.what() << Logger::End;
+                Logger::fatal << filename << ':' << lineI << ": " << e.what() << Logger::End;
             }
             tokens.push_back(std::move(def));
             continue;
@@ -337,7 +361,7 @@ tokenList_t tokenize(const std::string& str, const::std::string& filename)
             }
             catch (std::exception& e)
             {
-                Logger::fatal << e.what() << Logger::End;
+                Logger::fatal << filename << ':' << lineI << ": " << e.what() << Logger::End;
             }
             tokens.push_back(std::move(def));
             continue;
