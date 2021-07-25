@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 
 set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wpedantic -g3")
 
-add_executable(asm
+add_executable(chip8asm
     src/main.cpp
     src/Logger.cpp
     src/InputFile.cpp
