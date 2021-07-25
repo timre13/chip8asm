@@ -48,6 +48,15 @@ static void handleOpcode(const Tokenizer::Opcode* opcode, ByteList& output, cons
         }
     };
 
+    auto getLabelAddress{
+        [&labels](const std::string& name){
+            auto it = labels.find(name);
+            if (it == labels.end())
+                Logger::fatal << "Reference to undefined label: " << name << Logger::End;
+            return it->second;
+        }
+    };
+
     Logger::dbg << "Opcode: " << opcode->opcode << Logger::End;
     switch (opcode->opcode)
     {
@@ -97,7 +106,7 @@ static void handleOpcode(const Tokenizer::Opcode* opcode, ByteList& output, cons
             else if (opcode->operand1.getType() == Tokenizer::OpcodeOperand::Type::LabelReference)
             {
                 output.append16(0xb000 |
-                        (labels.find(opcode->operand0.getAsLabel().name)->second & 0x0fff));
+                        (getLabelAddress(opcode->operand0.getAsLabel().name) & 0x0fff));
             }
             else
             {
@@ -114,7 +123,7 @@ static void handleOpcode(const Tokenizer::Opcode* opcode, ByteList& output, cons
         case Tokenizer::OpcodeOperand::Type::LabelReference: // JP addr
             printErrorIfWrongNumOfOps(1);
             output.append16(0x1000 |
-                    (labels.find(opcode->operand0.getAsLabel().name)->second & 0x0fff));
+                    (getLabelAddress(opcode->operand0.getAsLabel().name) & 0x0fff));
             break;
 
         case Tokenizer::OpcodeOperand::Type::F:
@@ -135,7 +144,7 @@ static void handleOpcode(const Tokenizer::Opcode* opcode, ByteList& output, cons
         else if (opcode->operand0.getType() == Tokenizer::OpcodeOperand::Type::LabelReference)
         {
             output.append16(0x2000 |
-                    (labels.find(opcode->operand0.getAsLabel().name)->second & 0x0fff));
+                    (getLabelAddress(opcode->operand0.getAsLabel().name) & 0x0fff));
         }
         else
         {
@@ -195,7 +204,7 @@ static void handleOpcode(const Tokenizer::Opcode* opcode, ByteList& output, cons
                 else if (opcode->operand1.getType() == Tokenizer::OpcodeOperand::Type::LabelReference)
                 {
                     output.append16(0xa000 |
-                            (labels.find(opcode->operand0.getAsLabel().name)->second & 0x0fff));
+                            (getLabelAddress(opcode->operand0.getAsLabel().name) & 0x0fff));
                 }
                 else
                 {
