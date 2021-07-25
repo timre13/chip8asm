@@ -15,10 +15,12 @@ int main(int argc, char** argv)
     InputFile file;
     file.open(args.inputFilePath);
 
-    auto tokenList = Tokenizer::tokenize(file.getContent(), file.getFilePath());
-    Logger::dbg << "Found " << tokenList.size() << " tokens" << Logger::End;
+    Tokenizer::tokenList_t tokenList;
+    Tokenizer::labelMap_t labelMap;
+    Tokenizer::tokenize(file.getContent(), file.getFilePath(), &tokenList, &labelMap);
+    Logger::dbg << "Found " << tokenList.size() << " tokens and " << labelMap.size() << " labels" << Logger::End;
 
-    ByteList output = generateBinary(tokenList);
+    ByteList output = generateBinary(tokenList, labelMap);
     Logger::log << "Assembled to " << output.size() << " bytes" << Logger::End;
 
     Logger::dbg << "Writing output" << Logger::End;

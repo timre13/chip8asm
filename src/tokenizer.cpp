@@ -154,10 +154,10 @@ static unsigned int stringToUint(const std::string& str, unsigned int limit)
     return integer;
 }
 
-tokenList_t tokenize(const std::string& str, const::std::string& filename)
+void tokenize(
+        const std::string& str, const::std::string& filename,
+        tokenList_t* tokenList, labelMap_t* labelMap)
 {
-    tokenList_t tokens;
-
     std::stringstream ss;
     ss << str;
     size_t lineI = 0;
@@ -241,10 +241,14 @@ tokenList_t tokenize(const std::string& str, const::std::string& filename)
             Logger::dbg << "Found a label declaration: \"" << word.substr(0, word.length()-1)
                 << "\", offset: 0x" << std::hex << byteOffset << std::dec << Logger::End;
 
-            auto label = std::make_shared<LabelDeclaration>();
-            label->name = word.substr(0, word.length()-1);
-            label->offset = byteOffset;
-            tokens.push_back(std::move(label));
+            auto foundLabel = labelMap->find(word);
+            if (foundLabel != labelMap->end())
+            {
+                Logger::fatal << "Label redeclared: \"" << word
+                    << "\", original offset: 0x" << std::hex << foundLabel->second <<
+                    ", new offset: 0x" << byteOffset << Logger::End;
+            }
+            labelMap->insert({word.substr(0, word.length()-1), byteOffset});
             continue;
         }
 
@@ -382,7 +386,7 @@ tokenList_t tokenize(const std::string& str, const::std::string& filename)
             }
 
             token->setLineNumber(lineI);
-            tokens.push_back(std::move(token));
+            tokenList->push_back(std::move(token));
             byteOffset += 2;
             continue;
         }
@@ -439,7 +443,7 @@ tokenList_t tokenize(const std::string& str, const::std::string& filename)
                 Logger::warn << "DB without data" << Logger::End;
             }
             byteOffset += def->arguments.size(); 
-            tokens.push_back(std::move(def));
+            tokenList->push_back(std::move(def));
             continue;
         }
         else if (lowerWord.compare("dw") == 0) // Define word
@@ -468,15 +472,13 @@ tokenList_t tokenize(const std::string& str, const::std::string& filename)
                 Logger::warn << "DW without data" << Logger::End;
             }
             byteOffset += def->arguments.size() * 2; 
-            tokens.push_back(std::move(def));
+            tokenList->push_back(std::move(def));
             continue;
         }
 
 print_syntax_error:
         Logger::fatal << filename << ':' << lineI << ": Syntax error: \"" << word << '"' << Logger::End;
     }
-
-    return tokens;
 }
 
 } // namespace Tokenizer

@@ -415,32 +415,18 @@ static void handleDwInst(const Tokenizer::DwInst* dw, ByteList& output)
         output.append16(data);
 }
 
-ByteList generateBinary(const Tokenizer::tokenList_t& tokens)
+ByteList generateBinary(const Tokenizer::tokenList_t& tokens, const Tokenizer::labelMap_t& labels)
 {
     ByteList output;
-    labelMap_t labels;
 
     for (auto& token : tokens)
     {
         auto opcode = dynamic_cast<Tokenizer::Opcode*>(token.get());
-        auto labelDecl = dynamic_cast<Tokenizer::LabelDeclaration*>(token.get());
         auto dbInst = dynamic_cast<Tokenizer::DbInst*>(token.get());
         auto dwInst = dynamic_cast<Tokenizer::DwInst*>(token.get());
         if (opcode)
         {
             handleOpcode(opcode, output, labels);
-        }
-        else if (labelDecl)
-        {
-            assert(labelDecl->offset == output.size());
-            auto foundLabel = labels.find(labelDecl->name);
-            if (foundLabel != labels.end())
-            {
-                Logger::fatal << "Label redeclared: \"" << labelDecl->name
-                    << "\", original offset: 0x" << std::hex << foundLabel->second <<
-                    ", new offset: 0x" << labelDecl->offset << Logger::End;
-            }
-            labels.insert({labelDecl->name, (uint16_t)labelDecl->offset});
         }
         else if (dbInst)
         {

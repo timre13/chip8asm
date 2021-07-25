@@ -22,5 +22,5 @@ public:
     }
 };
 
-ByteList generateBinary(const Tokenizer::tokenList_t& tokens);
+ByteList generateBinary(const Tokenizer::tokenList_t& tokens, const Tokenizer::labelMap_t& labels);
 

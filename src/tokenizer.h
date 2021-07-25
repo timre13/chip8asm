@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cctype>
+#include <map>
 #include <stdint.h>
 #include <cassert>
 #include <string>
@@ -49,16 +50,12 @@ public:
     return true;
 }
 
-class LabelDeclaration final : public Token
-{
-public:
-    std::string name;
-    uint16_t offset;
-};
 [[nodiscard]] inline bool isLabelDeclaration(const std::string& str)
 {
     return str[str.length()-1] == ':' && isValidLabelName(str.substr(0, str.size()-1));
 }
+//                          V - name     V - offset
+using labelMap_t = std::map<std::string, uint16_t>;
 
 //--------------------------------- Macro --------------------------------------
 
@@ -277,7 +274,9 @@ using DwInst = DataStoreInst<uint16_t>;
     return str;
 }
 
-tokenList_t tokenize(const std::string& str, const::std::string& filename);
+void tokenize(
+        const std::string& str, const::std::string& filename,
+        tokenList_t* tokenList, labelMap_t* labelMap);
 
 } // namespace Tokenizer
 
