@@ -53,7 +53,7 @@ class LabelDeclaration final : public Token
 {
 public:
     std::string name;
-    uint16_t address;
+    uint16_t offset;
 };
 [[nodiscard]] inline bool isLabelDeclaration(const std::string& str)
 {

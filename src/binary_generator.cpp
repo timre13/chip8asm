@@ -53,7 +53,7 @@ static void handleOpcode(const Tokenizer::Opcode* opcode, ByteList& output, cons
             auto it = labels.find(name);
             if (it == labels.end())
                 Logger::fatal << "Reference to undefined label: " << name << Logger::End;
-            return it->second;
+            return ROM_LOAD_OFFSET + it->second;
         }
     };
 
@@ -204,7 +204,7 @@ static void handleOpcode(const Tokenizer::Opcode* opcode, ByteList& output, cons
                 else if (opcode->operand1.getType() == Tokenizer::OpcodeOperand::Type::LabelReference)
                 {
                     output.append16(0xa000 |
-                            (getLabelAddress(opcode->operand0.getAsLabel().name) & 0x0fff));
+                            (getLabelAddress(opcode->operand1.getAsLabel().name) & 0x0fff));
                 }
                 else
                 {
@@ -432,17 +432,15 @@ ByteList generateBinary(const Tokenizer::tokenList_t& tokens)
         }
         else if (labelDecl)
         {
-            // We finally know the address, so we can fill the field
-            labelDecl->address = ROM_LOAD_OFFSET + output.size();
-            Logger::dbg << "Label declaration \"" << labelDecl->name << "\" at 0x" << std::hex << labelDecl->address << std::dec << Logger::End;
+            assert(labelDecl->offset == output.size());
             auto foundLabel = labels.find(labelDecl->name);
             if (foundLabel != labels.end())
             {
                 Logger::fatal << "Label redeclared: \"" << labelDecl->name
-                    << "\", original address: 0x" << std::hex << foundLabel->second <<
-                    ", new address: 0x" << labelDecl->address << Logger::End;
+                    << "\", original offset: 0x" << std::hex << foundLabel->second <<
+                    ", new offset: 0x" << labelDecl->offset << Logger::End;
             }
-            labels.insert({labelDecl->name, (uint16_t)labelDecl->address});
+            labels.insert({labelDecl->name, (uint16_t)labelDecl->offset});
         }
         else if (dbInst)
         {

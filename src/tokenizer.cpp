@@ -162,6 +162,7 @@ tokenList_t tokenize(const std::string& str, const::std::string& filename)
     ss << str;
     size_t lineI = 0;
     std::string line;
+    uint16_t byteOffset{};
     while (std::getline(ss, line))
     {
         ++lineI;
@@ -237,11 +238,12 @@ tokenList_t tokenize(const std::string& str, const::std::string& filename)
 
         if (isLabelDeclaration(word))
         {
-            Logger::dbg << "Found a label declaration: \"" << word.substr(0, word.length()-1) << '"' << Logger::End;
+            Logger::dbg << "Found a label declaration: \"" << word.substr(0, word.length()-1)
+                << "\", offset: 0x" << std::hex << byteOffset << std::dec << Logger::End;
 
             auto label = std::make_shared<LabelDeclaration>();
             label->name = word.substr(0, word.length()-1);
-            // `address` field is filled later
+            label->offset = byteOffset;
             tokens.push_back(std::move(label));
             continue;
         }
@@ -381,6 +383,7 @@ tokenList_t tokenize(const std::string& str, const::std::string& filename)
 
             token->setLineNumber(lineI);
             tokens.push_back(std::move(token));
+            byteOffset += 2;
             continue;
         }
         else if (lowerWord.compare("db") == 0) // Define byte
@@ -435,6 +438,7 @@ tokenList_t tokenize(const std::string& str, const::std::string& filename)
             {
                 Logger::warn << "DB without data" << Logger::End;
             }
+            byteOffset += def->arguments.size(); 
             tokens.push_back(std::move(def));
             continue;
         }
@@ -463,6 +467,7 @@ tokenList_t tokenize(const std::string& str, const::std::string& filename)
             {
                 Logger::warn << "DW without data" << Logger::End;
             }
+            byteOffset += def->arguments.size() * 2; 
             tokens.push_back(std::move(def));
             continue;
         }
