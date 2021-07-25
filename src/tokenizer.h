@@ -220,12 +220,9 @@ public:
 
 private:
     Type m_type = Type::Empty;
-    union
-    {
-        uint16_t m_uint = 0;
-        RegisterEnum m_vRegister;
-        LabelReference m_label;
-    };
+    uint16_t m_uint = 0;
+    RegisterEnum m_vRegister;
+    LabelReference m_label;
 
 public:
     inline OpcodeOperand() {}
