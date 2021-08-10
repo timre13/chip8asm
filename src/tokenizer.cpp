@@ -154,13 +154,123 @@ static unsigned int stringToUint(const std::string& str, unsigned int limit)
     return integer;
 }
 
+// Returns: true if error happened, false otherwise
+static bool processOperand(
+        const std::string& filename, size_t lineI, const std::string& operandStr, OpcodeOperand* operand)
+{
+    if (isComment(operandStr))
+        return false;
+
+    auto reg = registerStrToEnum(operandStr);
+    if (reg != REGISTER_INVALID) // A register name
+    {
+        operand->setRegister(reg);
+        Logger::dbg << "Register: " << reg << Logger::End;
+    }
+    else if (strToLower(operandStr).compare("f") == 0)
+    {
+        operand->setF();
+        Logger::dbg << "F operand" << Logger::End;
+    }
+    else if (strToLower(operandStr).compare("b") == 0)
+    {
+        operand->setB();
+        Logger::dbg << "B operand" << Logger::End;
+    }
+    else if (strToLower(operandStr).compare("k") == 0)
+    {
+        operand->setK();
+        Logger::dbg << "K operand" << Logger::End;
+    }
+    else if (std::isdigit(operandStr[0]) || operandStr[0] == '\'') // Probably an integer constant or a character
+    {
+        try
+        {
+            unsigned int integer = stringToUint(operandStr, 0x0fff);
+            Logger::dbg << "Integer: " << integer << Logger::End;
+            operand->setUint(integer);
+        }
+        catch (std::exception& e)
+        {
+            Logger::fatal << filename << ':' << lineI << ": " << e.what() << Logger::End;
+            return true;
+        }
+    }
+    else if (isValidLabelName(operandStr)) // Probably a label reference
+    {
+        Logger::dbg << "Label reference to \"" << operandStr << '"' << Logger::End;
+        operand->setAsLabel(operandStr);
+    }
+    else
+    {
+        return true;
+    }
+    return false;
+}
+
+static std::string getWord(size_t& charI, const std::string& line)
+{
+    std::string word;
+    auto isSpace{
+        [](char c){
+            switch (c)
+            {
+            case ' ':
+            case '\f':
+            case '\n':
+            case '\r':
+            case '\t':
+            case '\v':
+            case ',':
+                return true;
+            default:
+                return false;
+            }
+        }
+    };
+
+    // Skip space
+    while (charI < line.length() && isSpace(line[charI]))
+        ++charI;
+
+    bool isInsideSingleQuote{};
+    bool isInsideDoubleQuote{};
+    while (charI < line.size())
+    {
+        if (line.at(charI) == '\'' && charI > 0 && line.at(charI-1) != '\\')
+        {
+            if (isInsideSingleQuote)
+            {
+                word += line.at(charI++);
+                break;
+            }
+            isInsideSingleQuote = true;
+        }
+        if (line.at(charI) == '"' && charI > 0 && line.at(charI-1) != '\\')
+        {
+            if (isInsideDoubleQuote)
+            {
+                word += line.at(charI++);
+                break;
+            }
+            isInsideDoubleQuote = true;
+        }
+
+        // We break out if this is the end of the line or we found a space outside the quotes
+        if (charI >= line.length() || ((isSpace(line.at(charI)) && !isInsideSingleQuote && !isInsideDoubleQuote)))
+            break;
+        word += line.at(charI++);
+    }
+    return word;
+}
+
 void tokenize(
         const std::string& str, const::std::string& filename,
         tokenList_t* tokenList, labelMap_t* labelMap)
 {
     std::stringstream ss;
     ss << str;
-    size_t lineI = 0;
+    size_t lineI{};
     std::string line;
     uint16_t byteOffset{};
     while (std::getline(ss, line))
@@ -172,62 +282,7 @@ void tokenize(
 
         size_t charI{};
 
-        auto getWord{
-            [&charI, &line](){
-                std::string word;
-                auto isSpace{
-                    [](char c){
-                        switch (c)
-                        {
-                        case ' ':
-                        case '\f':
-                        case '\n':
-                        case '\r':
-                        case '\t':
-                        case '\v':
-                        case ',':
-                            return true;
-                        default:
-                            return false;
-                        }
-                    }
-                };
-
-                while (charI < line.length() && isSpace(line[charI]))
-                    ++charI;
-
-                bool isInsideSingleQuote{};
-                bool isInsideDoubleQuote{};
-                while (true)
-                {
-                    if (line[charI] == '\'' && charI && line[charI-1] != '\\')
-                    {
-                        if (isInsideSingleQuote)
-                        {
-                            word += line[charI++];
-                            break;
-                        }
-                        isInsideSingleQuote = true;
-                    }
-                    if (line[charI] == '"' && charI && line[charI-1] != '\\')
-                    {
-                        if (isInsideDoubleQuote)
-                        {
-                            word += line[charI++];
-                            break;
-                        }
-                        isInsideDoubleQuote = true;
-                    }
-
-                    // We break out if this is the end of the line or we found a space outside the quotes
-                    if (charI == line.length() || (isSpace(line[charI]) && !isInsideSingleQuote && !isInsideDoubleQuote))
-                        break;
-                    word += line[charI++];
-                }
-                return word;
-            }
-        };
-        std::string word = getWord();
+        std::string word = getWord(charI, line);
 
         // TODO: Refactor this whole block
 
@@ -256,64 +311,11 @@ void tokenize(
         std::string lowerWord = strToLower(word);
         if (opcode != OPCODE_INVALID)
         {
-            auto processOperand{ // -> bool: true if error happened, false otherwise
-                [&filename = std::as_const(filename), &lineI = std::as_const(lineI)]
-                    (const std::string& operandStr, OpcodeOperand& operand){
-                    if (isComment(operandStr))
-                        return false;
-
-                    auto reg = registerStrToEnum(operandStr);
-                    if (reg != REGISTER_INVALID) // A register name
-                    {
-                        operand.setRegister(reg);
-                        Logger::dbg << "Register: " << reg << Logger::End;
-                    }
-                    else if (strToLower(operandStr).compare("f") == 0)
-                    {
-                        operand.setF();
-                        Logger::dbg << "F operand" << Logger::End;
-                    }
-                    else if (strToLower(operandStr).compare("b") == 0)
-                    {
-                        operand.setB();
-                        Logger::dbg << "B operand" << Logger::End;
-                    }
-                    else if (strToLower(operandStr).compare("k") == 0)
-                    {
-                        operand.setK();
-                        Logger::dbg << "K operand" << Logger::End;
-                    }
-                    else if (std::isdigit(operandStr[0]) || operandStr[0] == '\'') // Probably an integer constant or a character
-                    {
-                        try
-                        {
-                            unsigned int integer = stringToUint(operandStr, 0x0fff);
-                            Logger::dbg << "Integer: " << integer << Logger::End;
-                            operand.setUint(integer);
-                        }
-                        catch (std::exception& e)
-                        {
-                            Logger::fatal << filename << ':' << lineI << ": " << e.what() << Logger::End;
-                            return true;
-                        }
-                    }
-                    else if (isValidLabelName(operandStr)) // Probably a label reference
-                    {
-                        Logger::dbg << "Label reference to \"" << operandStr << '"' << Logger::End;
-                        operand.setAsLabel(operandStr);
-                    }
-                    else
-                    {
-                        return true;
-                    }
-                    return false;
-                }
-            };
 
             Logger::dbg << "Found an opcode: " << word << " = " << opcode << Logger::End;
-            std::string operand0Str = getWord();
-            std::string operand1Str = getWord();
-            std::string operand2Str = getWord();
+            std::string operand0Str = getWord(charI, line);
+            std::string operand1Str = getWord(charI, line);
+            std::string operand2Str = getWord(charI, line);
             Logger::dbg << "Operand 0: \"" << operand0Str << "\", operand 1: \"" << operand1Str << "\", operand 2: \"" << operand2Str << '"' << Logger::End;
             auto token = std::make_shared<Opcode>();
             token->opcode = opcode;
@@ -329,7 +331,7 @@ void tokenize(
                 }
                 else
                 {
-                    if (processOperand(operand0Str, token->operand0))
+                    if (processOperand(filename, lineI, operand0Str, &token->operand0))
                         continue; // Error, skip
                 }
             }
@@ -342,7 +344,7 @@ void tokenize(
                 }
                 else
                 {
-                    if (processOperand(operand1Str, token->operand1))
+                    if (processOperand(filename, lineI, operand1Str, &token->operand1))
                         continue; // Error, skip
                 }
             }
@@ -355,7 +357,7 @@ void tokenize(
                 }
                 else
                 {
-                    if (processOperand(operand2Str, token->operand2))
+                    if (processOperand(filename, lineI, operand2Str, &token->operand2))
                         continue; // Error, skip
                 }
             }
@@ -400,7 +402,7 @@ void tokenize(
             {
                 while (true)
                 {
-                    word = getWord();
+                    word = getWord(charI, line);
                     if (word.empty() || isComment(word))
                         break;
 
@@ -456,7 +458,7 @@ void tokenize(
             {
                 while (true)
                 {
-                    word = getWord();
+                    word = getWord(charI, line);
                     if (word.empty() || isComment(word))
                         break;
                     def->arguments.push_back(stringToUint(word, 0xffff));
