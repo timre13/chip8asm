@@ -7,6 +7,9 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include "Logger.h"
+
+#define MACRO_PREFIX_CHAR '%'
 
 namespace Tokenizer
 {
@@ -57,21 +60,31 @@ public:
 //                          V - name     V - offset
 using labelMap_t = std::map<std::string, uint16_t>;
 
-//--------------------------------- Macro --------------------------------------
+//------------------------------ Macro definition ------------------------------
 
-// TODO: Implement them
-enum MacroType
+[[nodiscard]] inline bool isMacroDeclaration(const std::string& str)
 {
-    MACROTYPE_INCLUDE,
-    MACROTYPE_DEFINE,
-};
+    const std::string defineStr = MACRO_PREFIX_CHAR+std::string("define");
+    if (str.substr(0, 7).compare(defineStr) != 0)
+        return false;
 
-class Macro final : public Token
-{
-public:
-    MacroType type;
-    std::string argument;
-};
+    if (isdigit(str[8]))
+        goto invalid;
+    for (size_t i{8}; i < str.size(); ++i)
+    {
+        if (isspace(str[i]))
+            break;
+        if (!std::isalnum(str[i]) && str[i] != '_')
+        {
+            goto invalid;
+        }
+    }
+    return true;
+
+invalid:
+    Logger::fatal << "Invalid macro declaration: " << str << Logger::End;
+    return false; // Make the compiler happy
+}
 
 //------------------------------------ Opcode ----------------------------------
 
@@ -273,6 +286,11 @@ using DwInst = DataStoreInst<uint16_t>;
         str[i] = std::tolower(str[i]);
     return str;
 }
+
+
+//------------------------------------------------------------------------------
+
+void preprocessFile(std::string* str);
 
 void tokenize(
         const std::string& str, const::std::string& filename,

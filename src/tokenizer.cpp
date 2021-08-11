@@ -264,6 +264,82 @@ static std::string getWord(size_t& charI, const std::string& line)
     return word;
 }
 
+static std::map<std::string, std::string> getMacroDefs(const std::string& str)
+{
+    std::map<std::string, std::string> output;
+
+    std::stringstream ss; ss << str;
+    std::string line;
+    while (std::getline(ss, line))
+    {
+        if (line.empty())
+            continue;
+
+        if (isMacroDeclaration(line))
+        {
+            std::string macroName;
+            {
+                size_t i{7};
+                // Skip space
+                while (i < line.size() && isspace(line[i]))
+                    i++;
+                // Get macro name
+                while (i < line.size() && !isspace(line[i]))
+                    macroName += line[i++];
+            }
+
+            std::string macroVal;
+            {
+                size_t i{7};
+                // Skip space
+                while (i < line.size() && isspace(line[i]))
+                    i++;
+                // Skip macro name
+                while (i < line.size() && !isspace(line[i]))
+                    i++;
+                // Skip space
+                while (i < line.size() && isspace(line[i]))
+                    i++;
+                // Get remaining line
+                macroVal = line.substr(i);
+            }
+
+            Logger::dbg << "Found a macro declaration: \"" << macroName
+                << "\", value: \"" << macroVal << '"' << Logger::End;
+
+            auto foundMacro = output.find(macroName);
+            if (foundMacro != output.end())
+            {
+                Logger::warn << "Macro redeclared: \"" << macroName << '"' << Logger::End;
+            }
+            output.insert({macroName, macroVal});
+        }
+    }
+    return output;
+}
+
+void preprocessFile(std::string* str)
+{
+    const auto macroDefs = getMacroDefs(*str);
+    // Replace macros with their value
+    for (const auto& macro : macroDefs)
+    {
+        const auto& from = macro.first;
+        const auto& to = macro.second;
+
+        size_t foundPos = str->find(from);
+        while (foundPos != std::string::npos)
+        {
+            Logger::dbg << "Replacing macro \"" << from << "\" with \"" << to << '"' << Logger::End;
+            // Note: this replaces the macros even where they are defined but it should not be a problem
+            str->replace(foundPos, from.size(), to);
+            foundPos = str->find(from);
+        }
+    }
+
+    Logger::dbg << "Preprocessed file:\n" << *str << Logger::End;
+}
+
 void tokenize(
         const std::string& str, const::std::string& filename,
         tokenList_t* tokenList, labelMap_t* labelMap)
@@ -279,6 +355,8 @@ void tokenize(
 
         if (line.empty())
             continue;
+        if (line[0] == MACRO_PREFIX_CHAR) // Macros have already been handled by the preprocessor
+            continue;
 
         size_t charI{};
 
@@ -288,7 +366,6 @@ void tokenize(
 
         if (isComment(word))
             continue;
-
         Logger::dbg << "Word: " << '"' << word << '"' << Logger::End;
 
         if (isLabelDeclaration(word))

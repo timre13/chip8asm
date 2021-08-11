@@ -12,12 +12,21 @@ int main(int argc, char** argv)
     auto args = parseArgs(argc, argv);
     Logger::setLoggerVerbosity(args.verbosity);
 
-    InputFile file;
-    file.open(args.inputFilePath);
+    std::string filePath;
+    std::string fileContent;
+    {
+        InputFile file;
+        file.open(args.inputFilePath);
+        filePath = args.inputFilePath;
+        fileContent = file.getContent();
+    }
+
+    // Call the preprocessor
+    Tokenizer::preprocessFile(&fileContent);
 
     Tokenizer::tokenList_t tokenList;
     Tokenizer::labelMap_t labelMap;
-    Tokenizer::tokenize(file.getContent(), file.getFilePath(), &tokenList, &labelMap);
+    Tokenizer::tokenize(fileContent, filePath, &tokenList, &labelMap);
     Logger::dbg << "Found " << tokenList.size() << " tokens and " << labelMap.size() << " labels" << Logger::End;
 
     ByteList output = generateBinary(tokenList, labelMap);

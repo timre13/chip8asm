@@ -1,5 +1,8 @@
 ; Sample Assembly source code for chip8emu
 
+%define SCREEN_W 64
+%define SCREEN_H 32
+
 main:
     xor v0, v0      ; v0 = x position
     xor v1, v1      ; v1 = y position
@@ -14,12 +17,12 @@ x_loop:
     add i, ve
     add v0, 8
 
-    se v0, 64
+    se v0, SCREEN_W
     jp x_loop
 
     add v1, 1
 
-    se v1, 32
+    se v1, SCREEN_H
     jp y_loop
 
 beep:
