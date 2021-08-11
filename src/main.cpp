@@ -50,6 +50,7 @@ int main(int argc, char** argv)
         outputFile.write((const char*)output.data(), output.size());
         if (outputFile.fail())
         {
+            outputFile.close();
             Logger::fatal << "Failed to write to file: \"" << args.outputFilePath << '"' << Logger::End;
         }
         outputFile.close();
