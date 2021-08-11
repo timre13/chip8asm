@@ -33,21 +33,52 @@ int main(int argc, char** argv)
     Logger::log << "Assembled to " << output.size() << " bytes" << Logger::End;
 
     Logger::dbg << "Writing output" << Logger::End;
-    if (args.outputFilePath.compare("-") == 0)
+    if (args.outputFilePath.compare("-") == 0) // stdout
     {
-        std::cout << std::hex << std::setfill('0');
-        for (size_t i{}; i < output.size(); ++i)
+        if (args.shouldOutputHexdump) // Hexdump
         {
-            if (i != 0 && i % 16 == 0)
-                std::cout << '\n';
-            std::cout << std::setw(2) << +output[i] << ' ';
+            std::cout << std::hex << std::setfill('0');
+            for (size_t i{}; i < output.size(); ++i)
+            {
+                if (i != 0 && i % 16 == 0)
+                    std::cout << '\n';
+                std::cout << std::setw(2) << +output[i] << ' ';
+            }
+            std::cout << std::dec << '\n';
         }
-        std::cout << std::dec << '\n';
+        else // Raw bytes
+        {
+            // Print the raw bytes and hope they won't be messed up
+            for (size_t i{}; i < output.size(); ++i)
+            {
+                std::cout << output[i];
+            }
+        }
     }
-    else
+    else // File
     {
-        std::ofstream outputFile{args.outputFilePath, std::ios_base::binary};
-        outputFile.write((const char*)output.data(), output.size());
+        std::ofstream outputFile{args.outputFilePath, std::ios_base::out |
+            (args.shouldOutputHexdump ? std::ios_base::out : std::ios_base::binary)};
+        if (args.shouldOutputHexdump) // Hexdump
+        {
+            std::stringstream ss;
+            {
+                ss << std::hex << std::setfill('0');
+                for (size_t i{}; i < output.size(); ++i)
+                {
+                    if (i != 0 && i % 16 == 0)
+                        ss << '\n';
+                    ss << std::setw(2) << +output[i] << ' ';
+                }
+                ss << '\n';
+            }
+            outputFile.write(ss.str().data(), ss.str().size());
+        }
+        else // Raw bytes
+        {
+            outputFile.write((const char*)output.data(), output.size());
+        }
+
         if (outputFile.fail())
         {
             outputFile.close();

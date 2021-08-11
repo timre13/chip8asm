@@ -39,7 +39,8 @@ static void printUsageAndExit(char* progName, int status=1)
         << "\n       -v                  print version and exit"
         << "\n       -l                  print license and exit"
         << "\n       -o [FILE]           write output to specified file"
-        << "\n       -                   output to stdout in hexadecimal"
+        << "\n       -                   print the raw output to stdout"
+        << "\n       -x                  output a hexdump"
         << "\n       -q                  be quiet (default verbosity)"
         << "\n       -V                  be verbose"
         << "\n       -d                  print debug messages"
@@ -93,6 +94,10 @@ Options parseArgs(int argc, char** argv)
             else if (arg.compare("-d") == 0)
             {
                 output.verbosity = Logger::LoggerVerbosity::Debug;
+            }
+            else if (arg.compare("-x") == 0)
+            {
+                output.shouldOutputHexdump = true;
             }
             else
             {
