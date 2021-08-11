@@ -2,6 +2,7 @@
 
 %define SCREEN_W 64
 %define SCREEN_H 32
+%define EMPTY_DEF
 
 main:
     xor v0, v0      ; v0 = x position

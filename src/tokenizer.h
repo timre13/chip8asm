@@ -9,7 +9,7 @@
 #include <memory>
 #include "Logger.h"
 
-#define MACRO_PREFIX_CHAR '%'
+#define PREPRO_PREFIX_CHAR '%'
 
 namespace Tokenizer
 {
@@ -64,7 +64,7 @@ using labelMap_t = std::map<std::string, uint16_t>;
 
 [[nodiscard]] inline bool isMacroDeclaration(const std::string& str)
 {
-    const std::string defineStr = MACRO_PREFIX_CHAR+std::string("define");
+    const std::string defineStr = PREPRO_PREFIX_CHAR+std::string("define");
     if (str.substr(0, 7).compare(defineStr) != 0)
         return false;
 
@@ -290,7 +290,7 @@ using DwInst = DataStoreInst<uint16_t>;
 
 //------------------------------------------------------------------------------
 
-void preprocessFile(std::string* str);
+std::string preprocessFile(const std::string &str, const::std::string& filename);
 
 void tokenize(
         const std::string& str, const::std::string& filename,

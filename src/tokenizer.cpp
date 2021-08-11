@@ -318,26 +318,51 @@ static std::map<std::string, std::string> getMacroDefs(const std::string& str)
     return output;
 }
 
-void preprocessFile(std::string* str)
+std::string preprocessFile(const std::string& str, const::std::string& filename)
 {
-    const auto macroDefs = getMacroDefs(*str);
+    const auto macroDefs = getMacroDefs(str);
+
+    std::string output;
+    // Remove preprocessor directives
+    {
+        std::stringstream ss;
+        ss << str;
+        std::string line;
+        uint16_t byteOffset{};
+        while (std::getline(ss, line))
+        {
+            if (line.empty() || line[0] == PREPRO_PREFIX_CHAR)
+            {
+                output += '\n';
+                continue;
+            }
+            output += line + '\n';
+        }
+    }
+    Logger::dbg << "Preprocessed file (stage 1):\n" << output << Logger::End;
+
     // Replace macros with their value
     for (const auto& macro : macroDefs)
     {
         const auto& from = macro.first;
         const auto& to = macro.second;
 
-        size_t foundPos = str->find(from);
+        size_t foundPos = output.find(from);
+        if (foundPos != std::string::npos && to.empty())
+        {
+            Logger::fatal << filename << ": Invalid use of empty macro \"" << from << '"' << Logger::End;
+        }
         while (foundPos != std::string::npos)
         {
             Logger::dbg << "Replacing macro \"" << from << "\" with \"" << to << '"' << Logger::End;
             // Note: this replaces the macros even where they are defined but it should not be a problem
-            str->replace(foundPos, from.size(), to);
-            foundPos = str->find(from);
+            output.replace(foundPos, from.size(), to);
+            foundPos = output.find(from);
         }
     }
 
-    Logger::dbg << "Preprocessed file:\n" << *str << Logger::End;
+    Logger::dbg << "Preprocessed file (stage 2):\n" << output << Logger::End;
+    return output;
 }
 
 void tokenize(
@@ -354,8 +379,6 @@ void tokenize(
         ++lineI;
 
         if (line.empty())
-            continue;
-        if (line[0] == MACRO_PREFIX_CHAR) // Macros have already been handled by the preprocessor
             continue;
 
         size_t charI{};

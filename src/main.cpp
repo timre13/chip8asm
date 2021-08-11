@@ -22,7 +22,7 @@ int main(int argc, char** argv)
     }
 
     // Call the preprocessor
-    Tokenizer::preprocessFile(&fileContent);
+    fileContent = Tokenizer::preprocessFile(fileContent, filePath);
 
     Tokenizer::tokenList_t tokenList;
     Tokenizer::labelMap_t labelMap;
