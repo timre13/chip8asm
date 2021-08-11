@@ -9,6 +9,11 @@
 
 using labelMap_t = std::map<std::string, uint16_t>;
 
+// Clangd can't find as_const()
+#ifndef NOT_CLANGD
+namespace std { template <typename T> add_const_t<T>& as_const(T&) noexcept; }
+#endif
+
 static void handleOpcode(const Tokenizer::Opcode* opcode, ByteList& output, const labelMap_t& labels)
 {
     auto printErrorIfWrongNumOfOps{
