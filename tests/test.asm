@@ -1,8 +1,15 @@
 ; Test assembly file for chip8emu
 ; Test comment
 
+%define VAL_TO_LOAD 73
+%define MY_MACRO
+
+;%foobar
+
 ld v1, 0xff
 LD v2, 13
+
+ld v8, VAL_TO_LOAD
 
 cls
 

@@ -264,6 +264,12 @@ static std::string getWord(size_t& charI, const std::string& line)
     return word;
 }
 
+static inline std::string getWord(const std::string& line)
+{
+    size_t _{};
+    return getWord(_, line);
+}
+
 static std::map<std::string, std::string> getMacroDefs(const std::string& str)
 {
     std::map<std::string, std::string> output;
@@ -331,8 +337,19 @@ std::string preprocessFile(const std::string& str, const::std::string& filename)
         uint16_t byteOffset{};
         while (std::getline(ss, line))
         {
-            if (line.empty() || line[0] == PREPRO_PREFIX_CHAR)
+            if (line.empty())
             {
+                output += '\n';
+                continue;
+            }
+
+            if (line[0] == PREPRO_PREFIX_CHAR)
+            {
+                const std::string directive = getWord(line).substr(1);
+                if (directive.compare("define") != 0)
+                {
+                    Logger::fatal << "Invalid preprocessor directive: " << line << Logger::End;
+                }
                 output += '\n';
                 continue;
             }
@@ -360,7 +377,6 @@ std::string preprocessFile(const std::string& str, const::std::string& filename)
             foundPos = output.find(from);
         }
     }
-
     Logger::dbg << "Preprocessed file (stage 2):\n" << output << Logger::End;
     return output;
 }
