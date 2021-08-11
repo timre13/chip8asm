@@ -13,7 +13,7 @@ add_executable(chip8asm
     src/main.cpp
     src/Logger.cpp
     src/InputFile.cpp
-    src/tokenizer.cpp
+    src/parser.cpp
     src/binary_generator.cpp
     src/arguments.cpp
 )

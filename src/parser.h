@@ -11,7 +11,7 @@
 
 #define PREPRO_PREFIX_CHAR '%'
 
-namespace Tokenizer
+namespace Parser
 {
 
 /*
@@ -292,9 +292,9 @@ using DwInst = DataStoreInst<uint16_t>;
 
 std::string preprocessFile(const std::string &str, const::std::string& filename);
 
-void tokenize(
+void parseTokens(
         const std::string& str, const::std::string& filename,
         tokenList_t* tokenList, labelMap_t* labelMap);
 
-} // namespace Tokenizer
+} // namespace Parser
 

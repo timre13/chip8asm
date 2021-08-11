@@ -1,6 +1,6 @@
 #pragma once
 
-#include "tokenizer.h"
+#include "parser.h"
 #include "Logger.h"
 #include <stdint.h>
 #include <vector>
@@ -22,5 +22,5 @@ public:
     }
 };
 
-ByteList generateBinary(const Tokenizer::tokenList_t& tokens, const Tokenizer::labelMap_t& labels);
+ByteList generateBinary(const Parser::tokenList_t& tokens, const Parser::labelMap_t& labels);
 

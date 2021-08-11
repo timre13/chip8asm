@@ -1,4 +1,4 @@
-#include "tokenizer.h"
+#include "parser.h"
 #include "Logger.h"
 #include "common.h"
 #include <cctype>
@@ -10,7 +10,7 @@
 #include <sstream>
 #include <utility>
 
-namespace Tokenizer
+namespace Parser
 {
 
 OpcodeEnum opcodeStrToEnum(std::string opcode)
@@ -365,7 +365,7 @@ std::string preprocessFile(const std::string& str, const::std::string& filename)
     return output;
 }
 
-void tokenize(
+void parseTokens(
         const std::string& str, const::std::string& filename,
         tokenList_t* tokenList, labelMap_t* labelMap)
 {
@@ -467,22 +467,22 @@ void tokenize(
             //   with F or B as first argument
             //   or with K as second argument
             if ((opcode != OPCODE_LD && (
-                token->operand0.getType() == Tokenizer::OpcodeOperand::Type::F
-             || token->operand0.getType() == Tokenizer::OpcodeOperand::Type::B
-             || token->operand0.getType() == Tokenizer::OpcodeOperand::Type::K
-             || token->operand1.getType() == Tokenizer::OpcodeOperand::Type::F
-             || token->operand1.getType() == Tokenizer::OpcodeOperand::Type::B
-             || token->operand1.getType() == Tokenizer::OpcodeOperand::Type::K
-             || token->operand2.getType() == Tokenizer::OpcodeOperand::Type::F
-             || token->operand2.getType() == Tokenizer::OpcodeOperand::Type::B
-             || token->operand2.getType() == Tokenizer::OpcodeOperand::Type::K))
+                token->operand0.getType() == Parser::OpcodeOperand::Type::F
+             || token->operand0.getType() == Parser::OpcodeOperand::Type::B
+             || token->operand0.getType() == Parser::OpcodeOperand::Type::K
+             || token->operand1.getType() == Parser::OpcodeOperand::Type::F
+             || token->operand1.getType() == Parser::OpcodeOperand::Type::B
+             || token->operand1.getType() == Parser::OpcodeOperand::Type::K
+             || token->operand2.getType() == Parser::OpcodeOperand::Type::F
+             || token->operand2.getType() == Parser::OpcodeOperand::Type::B
+             || token->operand2.getType() == Parser::OpcodeOperand::Type::K))
              || (opcode == OPCODE_LD && (
-                token->operand1.getType() == Tokenizer::OpcodeOperand::Type::F
-             || token->operand1.getType() == Tokenizer::OpcodeOperand::Type::B
-             || token->operand2.getType() == Tokenizer::OpcodeOperand::Type::F
-             || token->operand2.getType() == Tokenizer::OpcodeOperand::Type::B
-             || token->operand0.getType() == Tokenizer::OpcodeOperand::Type::K
-             || token->operand2.getType() == Tokenizer::OpcodeOperand::Type::K)))
+                token->operand1.getType() == Parser::OpcodeOperand::Type::F
+             || token->operand1.getType() == Parser::OpcodeOperand::Type::B
+             || token->operand2.getType() == Parser::OpcodeOperand::Type::F
+             || token->operand2.getType() == Parser::OpcodeOperand::Type::B
+             || token->operand0.getType() == Parser::OpcodeOperand::Type::K
+             || token->operand2.getType() == Parser::OpcodeOperand::Type::K)))
             {
                 goto print_syntax_error;
             }
@@ -583,5 +583,5 @@ print_syntax_error:
     }
 }
 
-} // namespace Tokenizer
+} // namespace Parser
 

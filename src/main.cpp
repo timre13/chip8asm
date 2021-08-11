@@ -3,7 +3,7 @@
 #include <iomanip>
 #include "InputFile.h"
 #include "Logger.h"
-#include "tokenizer.h"
+#include "parser.h"
 #include "binary_generator.h"
 #include "arguments.h"
 
@@ -22,11 +22,11 @@ int main(int argc, char** argv)
     }
 
     // Call the preprocessor
-    fileContent = Tokenizer::preprocessFile(fileContent, filePath);
+    fileContent = Parser::preprocessFile(fileContent, filePath);
 
-    Tokenizer::tokenList_t tokenList;
-    Tokenizer::labelMap_t labelMap;
-    Tokenizer::tokenize(fileContent, filePath, &tokenList, &labelMap);
+    Parser::tokenList_t tokenList;
+    Parser::labelMap_t labelMap;
+    Parser::parseTokens(fileContent, filePath, &tokenList, &labelMap);
     Logger::dbg << "Found " << tokenList.size() << " tokens and " << labelMap.size() << " labels" << Logger::End;
 
     ByteList output = generateBinary(tokenList, labelMap);
