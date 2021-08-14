@@ -22,5 +22,10 @@ public:
     }
 };
 
+/*
+ * Generates the output from the tokens.
+ *
+ * Throws on error.
+ */
 ByteList generateBinary(const Parser::tokenList_t& tokens, const Parser::labelMap_t& labels);
 

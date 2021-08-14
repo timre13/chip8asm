@@ -16,9 +16,6 @@ namespace Parser
 OpcodeEnum opcodeStrToEnum(std::string opcode)
 {
     opcode = strToLower(opcode);
-
-    // TODO: Is this UB?
-
     for (int en{}; en < OPCODE_INVALID; ++en)
     {
         if (opcode.compare(opcodeNames[en]) == 0)
@@ -35,9 +32,6 @@ RegisterEnum registerStrToEnum(std::string reg)
         return REGISTER_INVALID;
 
     reg = strToLower(reg);
-
-    // TODO: Is this UB?
-
     for (int en{}; en < REGISTER_INVALID; ++en)
     {
         if (reg.compare(registerNames[en]) == 0 || reg.compare(alternateVRegisterNames[en]) == 0)
@@ -76,7 +70,8 @@ bool isVRegister(RegisterEnum reg)
 
 uint8_t vRegisterToNibble(RegisterEnum reg)
 {
-    assert(isVRegister(reg));
+    if (!isVRegister(reg))
+        throw std::runtime_error{"Vx register expected, but got something else"};
     return uint8_t(reg & 0xf);
 }
 
@@ -98,7 +93,7 @@ static char escapedCharToChar(char character, bool isString=false)
     case 'r':  return '\r';
     case 'n':  return '\n';
     case '\\': return '\\';
-    default: throw std::invalid_argument{""};
+    default: throw std::runtime_error{""};
     }
 }
 
@@ -154,12 +149,10 @@ static unsigned int stringToUint(const std::string& str, unsigned int limit)
     return integer;
 }
 
-// Returns: true if error happened, false otherwise
-static bool processOperand(
-        const std::string& filename, size_t lineI, const std::string& operandStr, OpcodeOperand* operand)
+static void processOperand(const std::string& operandStr, OpcodeOperand* operand)
 {
     if (isComment(operandStr))
-        return false;
+        return;
 
     auto reg = registerStrToEnum(operandStr);
     if (reg != REGISTER_INVALID) // A register name
@@ -184,17 +177,9 @@ static bool processOperand(
     }
     else if (std::isdigit(operandStr[0]) || operandStr[0] == '\'') // Probably an integer constant or a character
     {
-        try
-        {
-            unsigned int integer = stringToUint(operandStr, 0x0fff);
-            Logger::dbg << "Integer: " << integer << Logger::End;
-            operand->setUint(integer);
-        }
-        catch (std::exception& e)
-        {
-            Logger::fatal << filename << ':' << lineI << ": " << e.what() << Logger::End;
-            return true;
-        }
+        unsigned int integer = stringToUint(operandStr, 0x0fff);
+        Logger::dbg << "Integer: " << integer << Logger::End;
+        operand->setUint(integer);
     }
     else if (isValidLabelName(operandStr)) // Probably a label reference
     {
@@ -203,9 +188,8 @@ static bool processOperand(
     }
     else
     {
-        return true;
+        throw std::runtime_error{"Invalid operand value"};
     }
-    return false;
 }
 
 static std::string getWord(size_t& charI, const std::string& line)
@@ -276,8 +260,10 @@ static std::map<std::string, std::string> getMacroDefs(const std::string& str)
 
     std::stringstream ss; ss << str;
     std::string line;
+    size_t lineI{};
     while (std::getline(ss, line))
     {
+        ++lineI;
         if (line.empty())
             continue;
 
@@ -316,7 +302,7 @@ static std::map<std::string, std::string> getMacroDefs(const std::string& str)
             auto foundMacro = output.find(macroName);
             if (foundMacro != output.end())
             {
-                Logger::warn << "Macro redeclared: \"" << macroName << '"' << Logger::End;
+                Logger::warn << lineI << ":Macro redeclared: \"" << macroName << '"' << Logger::End;
             }
             output.insert({macroName, macroVal});
         }
@@ -334,9 +320,10 @@ std::string preprocessFile(const std::string& str, const::std::string& filename)
         std::stringstream ss;
         ss << str;
         std::string line;
-        uint16_t byteOffset{};
+        size_t lineI{};
         while (std::getline(ss, line))
         {
+            ++lineI;
             if (line.empty())
             {
                 output += '\n';
@@ -348,7 +335,7 @@ std::string preprocessFile(const std::string& str, const::std::string& filename)
                 const std::string directive = getWord(line).substr(1);
                 if (directive.compare("define") != 0)
                 {
-                    Logger::fatal << "Invalid preprocessor directive: " << line << Logger::End;
+                    throw std::runtime_error{filename + ':' + std::to_string(lineI) + ':' + "Invalid preprocessor directive: " + line};
                 }
                 output += '\n';
                 continue;
@@ -367,12 +354,11 @@ std::string preprocessFile(const std::string& str, const::std::string& filename)
         size_t foundPos = output.find(from);
         if (foundPos != std::string::npos && to.empty())
         {
-            Logger::fatal << filename << ": Invalid use of empty macro \"" << from << '"' << Logger::End;
+            throw std::runtime_error{filename + ": Invalid use of empty macro \"" + from + '"'};
         }
         while (foundPos != std::string::npos)
         {
             Logger::dbg << "Replacing macro \"" << from << "\" with \"" << to << '"' << Logger::End;
-            // Note: this replaces the macros even where they are defined but it should not be a problem
             output.replace(foundPos, from.size(), to);
             foundPos = output.find(from);
         }
@@ -380,6 +366,7 @@ std::string preprocessFile(const std::string& str, const::std::string& filename)
     Logger::dbg << "Preprocessed file (stage 2):\n" << output << Logger::End;
     return output;
 }
+
 
 void parseTokens(
         const std::string& str, const::std::string& filename,
@@ -392,130 +379,129 @@ void parseTokens(
     uint16_t byteOffset{};
     while (std::getline(ss, line))
     {
-        ++lineI;
-
-        if (line.empty())
-            continue;
-
-        size_t charI{};
-
-        std::string word = getWord(charI, line);
-
-        // TODO: Refactor this whole block
-
-        if (isComment(word))
-            continue;
-        Logger::dbg << "Word: " << '"' << word << '"' << Logger::End;
-
-        if (isLabelDeclaration(word))
+        try
         {
-            Logger::dbg << "Found a label declaration: \"" << word.substr(0, word.length()-1)
-                << "\", offset: 0x" << std::hex << byteOffset << std::dec << Logger::End;
+            ++lineI;
 
-            auto foundLabel = labelMap->find(word);
-            if (foundLabel != labelMap->end())
+            if (line.empty())
+                continue;
+
+            size_t charI{};
+
+            std::string word = getWord(charI, line);
+
+            // TODO: Refactor this whole block
+
+            if (isComment(word))
+                continue;
+            Logger::dbg << "Word: " << '"' << word << '"' << Logger::End;
+
+            if (isLabelDeclaration(word))
             {
-                Logger::fatal << "Label redeclared: \"" << word
-                    << "\", original offset: 0x" << std::hex << foundLabel->second <<
-                    ", new offset: 0x" << byteOffset << Logger::End;
-            }
-            labelMap->insert({word.substr(0, word.length()-1), byteOffset});
-            continue;
-        }
+                Logger::dbg << "Found a label declaration: \"" << word.substr(0, word.length()-1)
+                    << "\", offset: 0x" << std::hex << byteOffset << std::dec << Logger::End;
 
-        OpcodeEnum opcode = opcodeStrToEnum(word);
-        std::string lowerWord = strToLower(word);
-        if (opcode != OPCODE_INVALID)
-        {
-
-            Logger::dbg << "Found an opcode: " << word << " = " << opcode << Logger::End;
-            std::string operand0Str = getWord(charI, line);
-            std::string operand1Str = getWord(charI, line);
-            std::string operand2Str = getWord(charI, line);
-            Logger::dbg << "Operand 0: \"" << operand0Str << "\", operand 1: \"" << operand1Str << "\", operand 2: \"" << operand2Str << '"' << Logger::End;
-            auto token = std::make_shared<Opcode>();
-            token->opcode = opcode;
-
-            // Don't try to parse comment after opcode as operands
-            bool hasCommentStarted = false;
-
-            if (operand0Str.size())
-            {
-                if (isComment(operand0Str))
+                auto foundLabel = labelMap->find(word);
+                if (foundLabel != labelMap->end())
                 {
-                    hasCommentStarted = true;
+                    throw std::runtime_error{"Label redeclared: \"" + word
+                        + "\", original offset: 0x" + intToHexStr(foundLabel->second) +
+                        ", new offset: 0x" + std::to_string(byteOffset)};
                 }
-                else
-                {
-                    if (processOperand(filename, lineI, operand0Str, &token->operand0))
-                        continue; // Error, skip
-                }
+                labelMap->insert({word.substr(0, word.length()-1), byteOffset});
+                continue;
             }
 
-            if (operand1Str.size() && !hasCommentStarted)
+            OpcodeEnum opcode = opcodeStrToEnum(word);
+            std::string lowerWord = strToLower(word);
+            if (opcode != OPCODE_INVALID)
             {
-                if (isComment(operand1Str))
+                Logger::dbg << "Found an opcode: " << word << " = " << opcode << Logger::End;
+                std::string operand0Str = getWord(charI, line);
+                std::string operand1Str = getWord(charI, line);
+                std::string operand2Str = getWord(charI, line);
+                Logger::dbg << "Operand 0: \"" << operand0Str
+                    << "\", operand 1: \"" << operand1Str
+                    << "\", operand 2: \"" << operand2Str
+                    << '"' << Logger::End;
+                auto token = std::make_shared<Opcode>();
+                token->opcode = opcode;
+
+                // Don't try to parse comment after opcode as operands
+                bool hasCommentStarted = false;
+
+                if (operand0Str.size())
                 {
-                    hasCommentStarted = true;
+                    if (isComment(operand0Str))
+                    {
+                        hasCommentStarted = true;
+                    }
+                    else
+                    {
+                        processOperand(operand0Str, &token->operand0);
+                    }
                 }
-                else
+
+                if (operand1Str.size() && !hasCommentStarted)
                 {
-                    if (processOperand(filename, lineI, operand1Str, &token->operand1))
-                        continue; // Error, skip
+                    if (isComment(operand1Str))
+                    {
+                        hasCommentStarted = true;
+                    }
+                    else
+                    {
+                        processOperand(operand1Str, &token->operand1);
+                    }
                 }
+
+                if (operand2Str.size() && !hasCommentStarted)
+                {
+                    if (isComment(operand2Str))
+                    {
+                        hasCommentStarted = true;
+                    }
+                    else
+                    {
+                        processOperand(operand2Str, &token->operand2);
+                    }
+                }
+
+                // Possible variants:
+                // LD:
+                //   with F or B as first argument
+                //   or with K as second argument
+                if ((opcode != OPCODE_LD && (
+                    token->operand0.getType() == Parser::OpcodeOperand::Type::F
+                 || token->operand0.getType() == Parser::OpcodeOperand::Type::B
+                 || token->operand0.getType() == Parser::OpcodeOperand::Type::K
+                 || token->operand1.getType() == Parser::OpcodeOperand::Type::F
+                 || token->operand1.getType() == Parser::OpcodeOperand::Type::B
+                 || token->operand1.getType() == Parser::OpcodeOperand::Type::K
+                 || token->operand2.getType() == Parser::OpcodeOperand::Type::F
+                 || token->operand2.getType() == Parser::OpcodeOperand::Type::B
+                 || token->operand2.getType() == Parser::OpcodeOperand::Type::K))
+                 || (opcode == OPCODE_LD && (
+                    token->operand1.getType() == Parser::OpcodeOperand::Type::F
+                 || token->operand1.getType() == Parser::OpcodeOperand::Type::B
+                 || token->operand2.getType() == Parser::OpcodeOperand::Type::F
+                 || token->operand2.getType() == Parser::OpcodeOperand::Type::B
+                 || token->operand0.getType() == Parser::OpcodeOperand::Type::K
+                 || token->operand2.getType() == Parser::OpcodeOperand::Type::K)))
+                {
+                    throw std::runtime_error{"Invalid use of F/B/K operator"};
+                }
+
+                token->setLineNumber(lineI);
+                tokenList->push_back(std::move(token));
+                byteOffset += 2;
+                continue;
             }
-
-            if (operand2Str.size() && !hasCommentStarted)
+            else if (lowerWord.compare("db") == 0) // Define byte
             {
-                if (isComment(operand2Str))
-                {
-                    hasCommentStarted = true;
-                }
-                else
-                {
-                    if (processOperand(filename, lineI, operand2Str, &token->operand2))
-                        continue; // Error, skip
-                }
-            }
+                Logger::dbg << "Found a byte definition" << Logger::End;;
 
-            // Possible variants:
-            // LD:
-            //   with F or B as first argument
-            //   or with K as second argument
-            if ((opcode != OPCODE_LD && (
-                token->operand0.getType() == Parser::OpcodeOperand::Type::F
-             || token->operand0.getType() == Parser::OpcodeOperand::Type::B
-             || token->operand0.getType() == Parser::OpcodeOperand::Type::K
-             || token->operand1.getType() == Parser::OpcodeOperand::Type::F
-             || token->operand1.getType() == Parser::OpcodeOperand::Type::B
-             || token->operand1.getType() == Parser::OpcodeOperand::Type::K
-             || token->operand2.getType() == Parser::OpcodeOperand::Type::F
-             || token->operand2.getType() == Parser::OpcodeOperand::Type::B
-             || token->operand2.getType() == Parser::OpcodeOperand::Type::K))
-             || (opcode == OPCODE_LD && (
-                token->operand1.getType() == Parser::OpcodeOperand::Type::F
-             || token->operand1.getType() == Parser::OpcodeOperand::Type::B
-             || token->operand2.getType() == Parser::OpcodeOperand::Type::F
-             || token->operand2.getType() == Parser::OpcodeOperand::Type::B
-             || token->operand0.getType() == Parser::OpcodeOperand::Type::K
-             || token->operand2.getType() == Parser::OpcodeOperand::Type::K)))
-            {
-                goto print_syntax_error;
-            }
-
-            token->setLineNumber(lineI);
-            tokenList->push_back(std::move(token));
-            byteOffset += 2;
-            continue;
-        }
-        else if (lowerWord.compare("db") == 0) // Define byte
-        {
-            Logger::dbg << "Found a byte definition" << Logger::End;;
-
-            auto def = std::make_shared<DbInst>();
-            std::string word;
-            try
-            {
+                auto def = std::make_shared<DbInst>();
+                std::string word;
                 while (true)
                 {
                     word = getWord(charI, line);
@@ -550,28 +536,21 @@ void parseTokens(
                         def->arguments.push_back(stringToUint(word, 255));
                     }
                 }
-            }
-            catch (std::exception& e)
-            {
-                Logger::fatal << filename << ':' << lineI << ": " << e.what() << Logger::End;
-            }
 
-            if (def->arguments.empty())
-            {
-                Logger::warn << "DB without data" << Logger::End;
+                if (def->arguments.empty())
+                {
+                    Logger::warn << "DB without data" << Logger::End;
+                }
+                byteOffset += def->arguments.size();
+                tokenList->push_back(std::move(def));
+                continue;
             }
-            byteOffset += def->arguments.size(); 
-            tokenList->push_back(std::move(def));
-            continue;
-        }
-        else if (lowerWord.compare("dw") == 0) // Define word
-        {
-            Logger::dbg << "Found a word definition" << Logger::End;;
-
-            auto def = std::make_shared<DwInst>();
-            std::string word;
-            try
+            else if (lowerWord.compare("dw") == 0) // Define word
             {
+                Logger::dbg << "Found a word definition" << Logger::End;;
+
+                auto def = std::make_shared<DwInst>();
+                std::string word;
                 while (true)
                 {
                     word = getWord(charI, line);
@@ -579,23 +558,21 @@ void parseTokens(
                         break;
                     def->arguments.push_back(stringToUint(word, 0xffff));
                 }
-            }
-            catch (std::exception& e)
-            {
-                Logger::fatal << filename << ':' << lineI << ": " << e.what() << Logger::End;
-            }
 
-            if (def->arguments.empty())
-            {
-                Logger::warn << "DW without data" << Logger::End;
+                if (def->arguments.empty())
+                {
+                    Logger::warn << "DW without data" << Logger::End;
+                }
+                byteOffset += def->arguments.size() * 2;
+                tokenList->push_back(std::move(def));
+                continue;
             }
-            byteOffset += def->arguments.size() * 2; 
-            tokenList->push_back(std::move(def));
-            continue;
         }
-
-print_syntax_error:
-        Logger::fatal << filename << ':' << lineI << ": Syntax error: \"" << word << '"' << Logger::End;
+        catch (std::exception& e)
+        {
+            // Rethrow the exception with more info
+            throw std::runtime_error{filename + ':' + std::to_string(lineI) + ": " + e.what()};
+        }
     }
 }
 

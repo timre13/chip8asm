@@ -3,7 +3,6 @@
 #include <cctype>
 #include <map>
 #include <stdint.h>
-#include <cassert>
 #include <string>
 #include <vector>
 #include <memory>
@@ -68,21 +67,27 @@ using labelMap_t = std::map<std::string, uint16_t>;
     if (str.substr(0, 7).compare(defineStr) != 0)
         return false;
 
-    if (isdigit(str[8]))
-        goto invalid;
-    for (size_t i{8}; i < str.size(); ++i)
+    size_t macroNameStart = 7;
+    while (macroNameStart < str.size() && isspace(str[macroNameStart]))
+        ++macroNameStart;
+
+    // First character in the name can't be a digit
+    if (isdigit(str[macroNameStart]))
+        goto malformed;
+
+    for (size_t i{macroNameStart+1}; i < str.size(); ++i)
     {
         if (isspace(str[i]))
             break;
         if (!std::isalnum(str[i]) && str[i] != '_')
         {
-            goto invalid;
+            goto malformed;
         }
     }
     return true;
 
-invalid:
-    Logger::fatal << "Invalid macro declaration: " << str << Logger::End;
+malformed:
+    throw std::runtime_error{"Invalid macro name"};
     return false; // Make the compiler happy
 }
 
@@ -238,9 +243,40 @@ public:
     inline OpcodeOperand() {}
 
     inline Type getType() const { return m_type; }
-    inline uint16_t getAsUint() const { assert(m_type == Type::Uint); return m_uint; }
-    inline RegisterEnum getAsRegister() const { assert(m_type == Type::Register); return m_vRegister; }
-    inline LabelReference getAsLabel() const { assert(m_type == Type::LabelReference); return m_label; }
+    inline std::string getTypeStr() const
+    {
+        switch (m_type)
+        {
+        case Type::Empty: return "Empty";
+        case Type::Uint: return "Integer";
+        case Type::Register: return "Register";
+        case Type::LabelReference: return "Label";
+        case Type::F: return "Sprite Operator (F)";
+        case Type::B: return "BCD Operator (B)";
+        case Type::K: return "Key Operator (K)";
+        }
+    }
+
+    inline uint16_t getAsUint() const
+    {
+        if (m_type != Type::Uint)
+            throw std::runtime_error{"Unexpected type of operand. Expected Integer, got "+getTypeStr()};
+        return m_uint;
+    }
+
+    inline RegisterEnum getAsRegister() const
+    {
+        if (m_type != Type::Register)
+            throw std::runtime_error{"Unexpected type of operand. Expected Register, got "+getTypeStr()};
+        return m_vRegister;
+    }
+
+    inline LabelReference getAsLabel() const
+    {
+        if (m_type != Type::LabelReference)
+            throw std::runtime_error{"Unexpected type of operand. Expected Label, got "+getTypeStr()};
+        return m_label;
+    }
 
     inline void setUint(uint16_t value) { m_uint = value; m_type = Type::Uint; }
     inline void setRegister(RegisterEnum reg) { m_vRegister = reg; m_type = Type::Register; }
@@ -280,18 +316,21 @@ using DwInst = DataStoreInst<uint16_t>;
 //------------------------------------------------------------------------------
 
 [[nodiscard]] inline bool isComment(const std::string& str) { return str[0] == ';'; }
-[[nodiscard]] inline std::string strToLower(std::string str)
-{
-    for (size_t i{}; i < str.size(); ++i)
-        str[i] = std::tolower(str[i]);
-    return str;
-}
-
 
 //------------------------------------------------------------------------------
 
+/*
+ * Handles the preprocessor macros.
+ *
+ * Throws on error.
+ */
 std::string preprocessFile(const std::string &str, const::std::string& filename);
 
+/*
+ * Transforms the string into a vector of tokens.
+ *
+ * Throws on error.
+ */
 void parseTokens(
         const std::string& str, const::std::string& filename,
         tokenList_t* tokenList, labelMap_t* labelMap);

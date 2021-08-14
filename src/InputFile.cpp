@@ -25,8 +25,7 @@ void InputFile::open(const std::string& filePath)
     }
     catch (std::exception& e)
     {
-        Logger::fatal << "Failed to read file: \"" << filePath << "\": " << e.what() << Logger::End;
-        return;
+        throw std::runtime_error{"Failed to read file: \"" + filePath + "\": " + e.what()};
     }
     m_filePath = filePath;
 }

@@ -3,6 +3,7 @@
 #include "common.h"
 #include <utility>
 #include <map>
+#include <cassert>
 
 #define ROM_LOAD_OFFSET 0x200
 
@@ -48,7 +49,9 @@ static void handleOpcode(const Parser::Opcode* opcode, ByteList& output, const l
                 break;
             }
             if (shouldPrintError)
-                Logger::fatal << "Invalid number of arguments for opcode: " << Parser::opcodeNames[opcode->opcode] << Logger::End;
+                throw std::runtime_error{"Invalid number of arguments for opcode: "
+                    + std::string{Parser::opcodeNames[opcode->opcode]}
+                    + ", expected " + std::to_string(maxArgs)};
         }
     };
 
@@ -56,7 +59,7 @@ static void handleOpcode(const Parser::Opcode* opcode, ByteList& output, const l
         [&labels](const std::string& name){
             auto it = labels.find(name);
             if (it == labels.end())
-                Logger::fatal << "Reference to undefined label: " << name << Logger::End;
+                throw std::runtime_error{"Reference to undefined label: " + name};
             return ROM_LOAD_OFFSET + it->second;
         }
     };
@@ -95,13 +98,12 @@ static void handleOpcode(const Parser::Opcode* opcode, ByteList& output, const l
         switch (opcode->operand0.getType())
         {
         case Parser::OpcodeOperand::Type::Empty:
-            Logger::fatal << "JP opcode requires operand(s)" << Logger::End;
-            break;
+            throw std::runtime_error{"JP opcode requires operand(s)"};
 
         case Parser::OpcodeOperand::Type::Register: // JP V0, addr
             printErrorIfWrongNumOfOps(2);
             if (opcode->operand0.getAsRegister() != Parser::REGISTER_V0)
-                Logger::fatal << "Register-relative jump is only possible with register V0" << Logger::End;
+                throw std::runtime_error{"Register-relative jump is only possible with register V0"};
             if (opcode->operand1.getType() == Parser::OpcodeOperand::Type::Uint)
             {
                 output.append16(0xb000 |
@@ -114,7 +116,7 @@ static void handleOpcode(const Parser::Opcode* opcode, ByteList& output, const l
             }
             else
             {
-                Logger::fatal << "JP V0 requires an address" << Logger::End;
+                throw std::runtime_error{"JP V0 requires an address"};
             }
             break;
 
@@ -152,14 +154,14 @@ static void handleOpcode(const Parser::Opcode* opcode, ByteList& output, const l
         }
         else
         {
-            Logger::fatal << "CALL opcode requires a constant value" << Logger::End;
+            throw std::runtime_error{"CALL opcode requires a constant value"};
         }
         break;
 
     case Parser::OPCODE_SE:
         printErrorIfWrongNumOfOps(2);
         if (opcode->operand0.getType() != Parser::OpcodeOperand::Type::Register)
-            Logger::fatal << "SE opcode requires a register name as left argument" << Logger::End;
+            throw std::runtime_error{"SE opcode requires a register name as left argument"};
         if (opcode->operand1.getType() == Parser::OpcodeOperand::Type::Uint) // SE Vx, byte
         {
             output.append16(0x3000 |
@@ -177,7 +179,7 @@ static void handleOpcode(const Parser::Opcode* opcode, ByteList& output, const l
     case Parser::OPCODE_SNE:
         printErrorIfWrongNumOfOps(2);
         if (opcode->operand0.getType() != Parser::OpcodeOperand::Type::Register)
-            Logger::fatal << "SNE opcode requires a register name as left argument" << Logger::End;
+            throw std::runtime_error{"SNE opcode requires a register name as left argument"};
         if (opcode->operand1.getType() == Parser::OpcodeOperand::Type::Uint) // SNE Vx, byte
         {
             output.append16(0x4000 |
@@ -212,7 +214,7 @@ static void handleOpcode(const Parser::Opcode* opcode, ByteList& output, const l
                 }
                 else
                 {
-                    Logger::fatal << "LD can only load constant value to I" << Logger::End;
+                    throw std::runtime_error{"LD can only load constant value to I"};
                 }
             }
             else if (opcode->operand0.getAsRegister() == Parser::REGISTER_I_ADDR) // LD [I], Vx
@@ -243,7 +245,7 @@ static void handleOpcode(const Parser::Opcode* opcode, ByteList& output, const l
                 case Parser::OpcodeOperand::Type::Register:
                     if (opcode->operand1.getAsRegister() == Parser::REGISTER_I) // We can't load from I
                     {
-                        Logger::fatal << "LD can't load from register I" << Logger::End;
+                        throw std::runtime_error{"LD can't load from register I"};
                     }
                     else if (opcode->operand1.getAsRegister() == Parser::REGISTER_I_ADDR) // LD Vx, [I]
                     {
@@ -269,15 +271,15 @@ static void handleOpcode(const Parser::Opcode* opcode, ByteList& output, const l
                     break;
 
                 case Parser::OpcodeOperand::Type::F:
-                    Logger::fatal << "LD: Right-side operand can't be F" << Logger::End;
+                    throw std::runtime_error{"LD: Right-side operand can't be F"};
                     break;
 
                 case Parser::OpcodeOperand::Type::B:
-                    Logger::fatal << "LD: Right-side operand can't be B" << Logger::End;
+                    throw std::runtime_error{"LD: Right-side operand can't be B"};
                     break;
 
                 case Parser::OpcodeOperand::Type::LabelReference:
-                    Logger::fatal << "LD: Can't load address into a Vx register" << Logger::End;
+                    throw std::runtime_error{"LD: Can't load address into a Vx register"};
                     break;
 
                 case Parser::OpcodeOperand::Type::Empty:
@@ -289,13 +291,13 @@ static void handleOpcode(const Parser::Opcode* opcode, ByteList& output, const l
         }
 
         case Parser::OpcodeOperand::Type::K:
-            Logger::fatal << "LD: Left-side operand can't be K" << Logger::End;
+            throw std::runtime_error{"LD: Left-side operand can't be K"};
             break;
 
         case Parser::OpcodeOperand::Type::Uint:
         case Parser::OpcodeOperand::Type::LabelReference:
         case Parser::OpcodeOperand::Type::Empty: // Make the compiler happy
-            Logger::fatal << "LD: Destination can't be a constant value" << Logger::End;
+            throw std::runtime_error{"LD: Destination can't be a constant value"};
             break;
 
         case Parser::OpcodeOperand::Type::F: // LD F, Vx
@@ -399,8 +401,7 @@ static void handleOpcode(const Parser::Opcode* opcode, ByteList& output, const l
         break;
 
     case Parser::OPCODE_INVALID:
-        Logger::fatal << "Invalid opcode" << Logger::End;
-        break;
+        throw std::runtime_error{"Invalid opcode"};;
     }
 }
 
@@ -425,29 +426,36 @@ ByteList generateBinary(const Parser::tokenList_t& tokens, const Parser::labelMa
 
     for (auto& token : tokens)
     {
-        auto opcode = dynamic_cast<Parser::Opcode*>(token.get());
-        auto dbInst = dynamic_cast<Parser::DbInst*>(token.get());
-        auto dwInst = dynamic_cast<Parser::DwInst*>(token.get());
-        if (opcode)
+        try
         {
-            handleOpcode(opcode, output, labels);
+            auto opcode = dynamic_cast<Parser::Opcode*>(token.get());
+            auto dbInst = dynamic_cast<Parser::DbInst*>(token.get());
+            auto dwInst = dynamic_cast<Parser::DwInst*>(token.get());
+            if (opcode)
+            {
+                handleOpcode(opcode, output, labels);
+            }
+            else if (dbInst)
+            {
+                handleDbInst(dbInst, output);
+            }
+            else if (dwInst)
+            {
+                handleDwInst(dwInst, output);
+            }
+            else
+            {
+                // Invalid token pointer - current token is implemented in the tokenizer but not in the binary generator
+                // Or something is broken
+                assert(false);
+            }
         }
-        else if (dbInst)
+        catch (std::exception& e)
         {
-            handleDbInst(dbInst, output);
-        }
-        else if (dwInst)
-        {
-            handleDwInst(dwInst, output);
-        }
-        else
-        {
-            // Invalid token pointer - current token is implemented in the tokenizer but not in the binary generator
-            // Or something is broken
-            assert(false);
+            // Rethrown the exception with more info
+            throw std::runtime_error{"Line " + token->getLineNumberStr() + ": " + e.what()};
         }
     }
-
     return output;
 }
 
