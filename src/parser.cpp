@@ -158,32 +158,32 @@ static void processOperand(const std::string& operandStr, OpcodeOperand* operand
     if (reg != REGISTER_INVALID) // A register name
     {
         operand->setRegister(reg);
-        Logger::dbg << "Register: " << reg << Logger::End;
+        Logger::dbg << "Operand: Register: " << reg << Logger::End;
     }
     else if (strToLower(operandStr).compare("f") == 0)
     {
         operand->setF();
-        Logger::dbg << "F operand" << Logger::End;
+        Logger::dbg << "Operand: F operand" << Logger::End;
     }
     else if (strToLower(operandStr).compare("b") == 0)
     {
         operand->setB();
-        Logger::dbg << "B operand" << Logger::End;
+        Logger::dbg << "Operand: B operand" << Logger::End;
     }
     else if (strToLower(operandStr).compare("k") == 0)
     {
         operand->setK();
-        Logger::dbg << "K operand" << Logger::End;
+        Logger::dbg << "Operand: K operand" << Logger::End;
     }
     else if (std::isdigit(operandStr[0]) || operandStr[0] == '\'') // Probably an integer constant or a character
     {
         unsigned int integer = stringToUint(operandStr, 0x0fff);
-        Logger::dbg << "Integer: " << integer << Logger::End;
+        Logger::dbg << "Operand: Integer: " << integer << Logger::End;
         operand->setUint(integer);
     }
     else if (isValidLabelName(operandStr)) // Probably a label reference
     {
-        Logger::dbg << "Label reference to \"" << operandStr << '"' << Logger::End;
+        Logger::dbg << "Operand: Label reference to \"" << operandStr << '"' << Logger::End;
         operand->setAsLabel(operandStr);
     }
     else
@@ -302,7 +302,7 @@ static std::map<std::string, std::string> getMacroDefs(const std::string& str)
             auto foundMacro = output.find(macroName);
             if (foundMacro != output.end())
             {
-                Logger::warn << lineI << ":Macro redeclared: \"" << macroName << '"' << Logger::End;
+                Logger::warn << lineI << ": Macro redeclared: \"" << macroName << '"' << Logger::End;
             }
             output.insert({macroName, macroVal});
         }
