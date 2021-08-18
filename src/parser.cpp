@@ -567,6 +567,8 @@ void parseTokens(
                 tokenList->push_back(std::move(def));
                 continue;
             }
+
+            throw std::runtime_error{"Syntax error: "+line};
         }
         catch (std::exception& e)
         {
