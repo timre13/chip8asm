@@ -304,7 +304,7 @@ static std::map<std::string, std::string> getMacroDefs(const std::string& str)
             {
                 Logger::warn << lineI << ": Macro redeclared: \"" << macroName << '"' << Logger::End;
             }
-            output.insert({macroName, macroVal});
+            output.insert_or_assign(macroName, macroVal);
         }
     }
     return output;
